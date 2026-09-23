@@ -1,0 +1,45 @@
+{
+  "model_type": "RandomForestClassifier",
+  "evaluation_dataset": "Holdout 20% Test Split",
+  "test_samples": 982,
+  "train_samples": 3533,
+  "accuracy": 0.9959,
+  "precision": 0.9938,
+  "recall": 0.9979,
+  "f1_score": 0.9959,
+  "roc_auc": 1.0,
+  "confusion_matrix": {
+    "true_negative": 496,
+    "false_positive": 3,
+    "false_negative": 1,
+    "true_positive": 482
+  },
+  "classification_report": {
+    "0": {
+      "precision": 0.9979879275653923,
+      "recall": 0.9939879759519038,
+      "f1-score": 0.9959839357429718,
+      "support": 499.0
+    },
+    "1": {
+      "precision": 0.9938144329896907,
+      "recall": 0.9979296066252588,
+      "f1-score": 0.9958677685950413,
+      "support": 483.0
+    },
+    "accuracy": 0.9959266802443992,
+    "macro avg": {
+      "precision": 0.9959011802775415,
+      "recall": 0.9959587912885812,
+      "f1-score": 0.9959258521690066,
+      "support": 982.0
+    },
+    "weighted avg": {
+      "precision": 0.9959351802333517,
+      "recall": 0.9959266802443992,
+      "f1-score": 0.995926798540884,
+      "support": 982.0
+    }
+  },
+  "evaluated_at": "2026-09-16T14:13:00.181455+00:00"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "QRadar — Quishing Defense System",
+  "short_name": "QRadar",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#090D16",
+  "theme_color": "#00F2FE",
+  "description": "Real-Time Quishing Detection & Defense Mobile and Web Application",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}

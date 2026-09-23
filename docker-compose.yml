@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  qradar-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: qradar-backend:latest
+    container_name: qradar-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=False
+      - DATABASE_URL=sqlite+aiosqlite:////app/backend/data/qradar.db
+      - SYNC_DATABASE_URL=sqlite:////app/backend/data/qradar.db
+      - ML_MODEL_PATH=/app/ml/models/phishing_rf_model.joblib
+      - ML_METADATA_PATH=/app/ml/models/model_metadata.json
+      - THREAT_INTEL_PROVIDER=mock
+      - THREAT_INTEL_TIMEOUT_SECONDS=3.0
+      - GSB_API_KEY=
+      - VIRUSTOTAL_API_KEY=
+      - CORS_ORIGINS=["*"]
+      - RATE_LIMIT_MAX_REQUESTS=120
+      - RATE_LIMIT_WINDOW_SECONDS=60
+      - RETENTION_DAYS=90
+    volumes:
+      - qradar-data:/app/backend/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  qradar-data:
+    driver: local

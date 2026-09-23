@@ -1,0 +1,1681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QRadar — Real-Time Quishing Detection & Defense System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Local Offline-First Scripts with CDN Fallbacks -->
+  <script src="/static/js/chart.umd.min.js"></script>
+  <script>if (typeof Chart === 'undefined') { document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"><\/script>'); }</script>
+  <script src="/static/js/jsqr.min.js"></script>
+  <script>if (typeof jsQR === 'undefined') { document.write('<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"><\/script>'); }</script>
+  <style>
+    :root {
+      /* QRadar Color Palette */
+      --bg: #0B1220;                /* #0B1220 — Primary Background */
+      --sidebar: #0F172A;           /* #0F172A — Sidebar Slate Dark */
+      --surface: #162235;           /* #162235 — Card / Panel Surface */
+      --surface-elevated: #1E293B;  /* #1E293B — Card Hover / Elevated Surface */
+      --border: #334155;            /* #334155 — Enterprise Border */
+      --border-light: #475569;      /* #475569 — Secondary Border */
+
+      /* Electric Blue & Brand Accents */
+      --primary: #38BDF8;           /* #38BDF8 — Primary QRadar Blue */
+      --primary-hover: #0EA5E9;     /* #0EA5E9 — Secondary Blue Hover */
+      --secondary: #60A5FA;         /* #60A5FA — Secondary Blue */
+      --accent: #22D3EE;            /* #22D3EE — Cyan Accent */
+
+      /* Typography Tokens */
+      --text: #F8FAFC;              /* #F8FAFC — Primary Text */
+      --text-muted: #94A3B8;        /* #94A3B8 — Secondary Text / Metadata */
+      --text-subtle: #CBD5E1;       /* #CBD5E1 — Subtitles & Nav Text */
+      --placeholder: #64748B;       /* #64748B — Placeholder Text */
+      --font-main: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      /* Security Status Colors */
+      --safe: #22C55E;              /* #22C55E — SAFE */
+      --safe-bg: rgba(34, 197, 94, 0.12);
+      --suspicious: #F59E0B;        /* #F59E0B — SUSPICIOUS */
+      --suspicious-bg: rgba(245, 158, 11, 0.12);
+      --malicious: #EF4444;         /* #EF4444 — MALICIOUS */
+      --malicious-bg: rgba(239, 68, 68, 0.12);
+      --block: #DC2626;             /* #DC2626 — BLOCK */
+      --block-bg: rgba(220, 38, 38, 0.12);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-main);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background-color: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .brand {
+      padding: 22px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+    }
+    .brand-text h1 { font-size: 18px; font-weight: 900; letter-spacing: 0.3px; color: var(--text); }
+    .brand-text p { font-size: 11px; color: var(--text-muted); }
+
+    .nav-links {
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex-grow: 1;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 15px;
+      border-radius: 9px;
+      color: var(--text-subtle);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+      text-decoration: none;
+      border: 1px solid transparent;
+    }
+    .nav-item:hover { background-color: var(--surface-elevated); color: var(--text); }
+    .nav-item.active {
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 700;
+      border: 1px solid var(--border);
+    }
+    .nav-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      transition: color 0.15s ease;
+    }
+    .nav-item:hover .nav-icon,
+    .nav-item.active .nav-icon { color: var(--primary); }
+
+    .sidebar-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--safe); display: inline-block; }
+    .status-dot.offline { background: var(--malicious); }
+
+    /* Main Content Area */
+    .main-content {
+      flex-grow: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+    .topbar {
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+    }
+    .topbar h2 { font-size: 18px; font-weight: 800; color: var(--text); letter-spacing: 0.2px; }
+    
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+    }
+    .badge-safe { background: var(--safe-bg); color: var(--safe); border: 1px solid rgba(34, 197, 94, 0.4); }
+    .badge-suspicious { background: var(--suspicious-bg); color: var(--suspicious); border: 1px solid rgba(245, 158, 11, 0.4); }
+    .badge-malicious { background: var(--malicious-bg); color: var(--malicious); border: 1px solid rgba(239, 68, 68, 0.4); }
+    .badge-block { background: var(--block-bg); color: var(--block); border: 1px solid rgba(220, 38, 38, 0.4); }
+
+    .view-container {
+      padding: 28px;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px;
+      margin-bottom: 20px;
+    }
+    .card-header-icon {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+    .stat-title { font-size: 10px; font-weight: 800; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 8px; }
+    .stat-value { font-size: 28px; font-weight: 900; }
+
+    /* Dropzone */
+    .dropzone {
+      border: 2px dashed var(--border-light);
+      border-radius: 16px;
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--surface-elevated);
+      transition: all 0.2s ease;
+    }
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--primary);
+      background: rgba(56, 189, 248, 0.04);
+    }
+    .dropzone-icon {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 12px;
+      color: var(--primary);
+    }
+
+    /* Buttons */
+    .btn {
+      background: var(--primary);
+      color: #0B1220;
+      border: none;
+      padding: 11px 22px;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+      text-decoration: none;
+      letter-spacing: 0.3px;
+    }
+    .btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
+    .btn-secondary {
+      background: var(--surface-elevated);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--primary); color: var(--primary); background: var(--surface-elevated); }
+    .btn-warning {
+      background: var(--suspicious);
+      color: #0B1220;
+    }
+    .btn-warning:hover { opacity: 0.9; }
+    .btn-danger {
+      background: var(--block);
+      color: #FFF;
+    }
+
+    /* Input */
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .input-text {
+      flex-grow: 1;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .input-text::placeholder { color: var(--placeholder); }
+    .input-text:focus { border-color: var(--primary); }
+
+    /* Mode Switcher Tabs */
+    .scanner-tabs {
+      display: flex;
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 5px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
+      gap: 6px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 16px;
+      text-align: center;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      font-weight: 700;
+      font-size: 13px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .tab-btn.active {
+      background: var(--surface-elevated);
+      color: var(--primary);
+      border: 1px solid var(--border);
+    }
+
+    /* Webcam Container & Cyber Viewfinder */
+    .webcam-container {
+      position: relative;
+      width: 100%;
+      height: 400px;
+      background: #020617;
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+    }
+    #webcam-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #webcam-canvas { display: none; }
+    .webcam-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .target-box {
+      width: 240px;
+      height: 240px;
+      position: relative;
+      border: 1.5px dashed rgba(56, 189, 248, 0.3);
+      border-radius: 14px;
+      box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.65);
+    }
+    /* 4 Target Corner Brackets */
+    .corner {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-color: var(--primary);
+      border-style: solid;
+    }
+    .c-tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-top-left-radius: 8px; }
+    .c-tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-top-right-radius: 8px; }
+    .c-bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; border-bottom-left-radius: 8px; }
+    .c-br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-bottom-right-radius: 8px; }
+    
+    /* Scanning Laser Line */
+    .laser-line {
+      position: absolute;
+      width: 100%;
+      height: 2px;
+      background: var(--accent);
+      box-shadow: 0 0 8px 1px var(--accent);
+      top: 0;
+      animation: scanLaser 2.2s ease-in-out infinite alternate;
+    }
+    @keyframes scanLaser {
+      0% { top: 5%; opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { top: 95%; opacity: 0.3; }
+    }
+
+    /* Modal for Multi-QR Disambiguation */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(11, 18, 32, 0.85);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .modal-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      max-width: 600px;
+      width: 90%;
+      padding: 26px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+    }
+    .multi-qr-item {
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: border-color 0.15s;
+    }
+    .multi-qr-item:hover { border-color: var(--primary); }
+
+    /* Results */
+    .result-hero {
+      text-align: center;
+      padding: 28px;
+      border-radius: 18px;
+      margin-bottom: 22px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+    }
+    .score-circle {
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      margin: 16px auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 6px solid var(--primary);
+      background: var(--surface-elevated);
+    }
+    .score-num { font-size: 38px; font-weight: 900; line-height: 1; }
+    .score-label { font-size: 9px; font-weight: 800; letter-spacing: 1.5px; color: var(--text-muted); margin-top: 4px; }
+
+    .indicator-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px;
+      border-radius: 10px;
+      background: var(--surface-elevated);
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+    }
+    .indicator-item.triggered {
+      border-color: rgba(239, 68, 68, 0.4);
+      background: rgba(239, 68, 68, 0.06);
+    }
+    .indicator-status-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      font-weight: 900;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .indicator-status-icon.clean {
+      background: var(--safe-bg);
+      color: var(--safe);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .indicator-status-icon.alert {
+      background: var(--malicious-bg);
+      color: var(--malicious);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    /* Demo Chips */
+    .chip-wrap { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .chip {
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      color: var(--text-subtle);
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chip:hover { border-color: var(--primary); color: var(--primary); }
+    .chip-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 12px 14px; font-size: 11px; color: var(--text-muted); font-weight: 800; border-bottom: 1px solid var(--border); letter-spacing: 0.5px; }
+    td { padding: 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+    tr:hover td { background: var(--surface-elevated); }
+
+    .empty-state {
+      text-align: center;
+      padding: 50px 20px;
+      color: var(--text-muted);
+    }
+    .empty-state h3 { color: var(--text); font-size: 17px; margin-bottom: 6px; font-weight: 800; }
+
+    /* Responsive Design */
+    @media (max-width: 900px) {
+      body { flex-direction: column; height: auto; min-height: 100vh; overflow-y: auto; }
+      .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      .nav-links { flex-direction: row; flex-wrap: wrap; justify-content: center; padding: 10px; }
+      .grid-4 { grid-template-columns: 1fr 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .view-container { padding: 20px 16px; }
+    }
+    @media (max-width: 600px) {
+      .grid-4 { grid-template-columns: 1fr; }
+      .input-group { flex-direction: column; }
+      .topbar { padding: 14px 16px; }
+      .scanner-tabs { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Left Sidebar -->
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>QRadar</h1>
+        <p>Quishing Defense v1.0</p>
+      </div>
+    </div>
+    <div class="nav-links">
+      <a class="nav-item active" onclick="showPage('home')">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </span>
+        <span>Home Overview</span>
+      </a>
+      <a class="nav-item" onclick="showPage('scanner')">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+        </span>
+        <span>Live QR Scanner</span>
+      </a>
+      <a class="nav-item" onclick="showPage('history')">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+        </span>
+        <span>Scan History Logs</span>
+      </a>
+      <a class="nav-item" onclick="showPage('dashboard')">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+        </span>
+        <span>Security Dashboard</span>
+      </a>
+      <a class="nav-item" onclick="showPage('settings')">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </span>
+        <span>Settings & Info</span>
+      </a>
+    </div>
+    <div class="sidebar-footer">
+      <div>
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text" style="margin-left: 6px; font-weight: 800; color: var(--safe); font-size: 10px;">ONLINE</span>
+      </div>
+      <span>FastAPI Authoritative</span>
+    </div>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="main-content">
+    <div class="topbar">
+      <h2 id="topbar-title">Home Overview</h2>
+      <div>
+        <span class="badge badge-safe" id="topbar-badge">✓ PROTECTED</span>
+      </div>
+    </div>
+
+    <div class="view-container">
+
+      <!-- PAGE: HOME -->
+      <div id="page-home" class="page active">
+        <div class="card" style="padding: 26px;">
+          <span class="badge badge-safe" style="margin-bottom: 12px; display: inline-block;">DEFENSE-IN-DEPTH SECURITY LAYER</span>
+          <h2 style="font-size: 22px; font-weight: 900; margin-bottom: 10px; color: var(--text);">Scan a QR code before you trust the destination.</h2>
+          <p style="color: var(--text-muted); font-size: 13.5px; max-width: 780px; line-height: 1.6;">
+            QRadar scans QR codes before you trust the destination. It analyzes decoded content using security rules, machine learning, and threat intelligence to identify potentially dangerous QR links.
+          </p>
+          <div style="margin-top: 20px; display: flex; gap: 12px; flex-wrap: wrap;">
+            <button class="btn" onclick="showPage('scanner')">Open Live Scanner</button>
+            <button class="btn btn-secondary" onclick="showPage('dashboard')">View Security Dashboard</button>
+          </div>
+        </div>
+
+        <div class="grid-4" id="home-stats-grid">
+          <div class="stat-card">
+            <div class="stat-title">TOTAL SCANS</div>
+            <div class="stat-value" id="home-total-scans" style="color: var(--primary);">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">BLOCKED THREATS</div>
+            <div class="stat-value" id="home-blocked" style="color: var(--malicious);">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">SAFE DESTINATIONS</div>
+            <div class="stat-value" id="home-safe" style="color: var(--safe);">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">SUSPICIOUS WARNS</div>
+            <div class="stat-value" id="home-suspicious" style="color: var(--suspicious);">0</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header-icon">Quick URL Testbench</div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Inspect any destination payload through the authoritative security pipeline without executing target code.</p>
+          <div class="input-group">
+            <input type="text" class="input-text" id="home-url-input" placeholder="Enter URL or raw QR text (e.g. https://www.google.com)...">
+            <button class="btn" onclick="scanUrlFromInput('home-url-input')">Inspect Security</button>
+          </div>
+          <div class="chip-wrap">
+            <div class="chip" onclick="setAndScan('https://www.google.com/search?q=cybersecurity')">
+              <span class="chip-dot" style="background: var(--safe);"></span> Safe: Google Search
+            </div>
+            <div class="chip" onclick="setAndScan('http://paypa1-account-verification.xyz/login.php')">
+              <span class="chip-dot" style="background: var(--suspicious);"></span> Typosquat: PayPa1 Lookalike
+            </div>
+            <div class="chip" onclick="setAndScan('http://192.168.1.105:8080/secure/paypal_login.htm')">
+              <span class="chip-dot" style="background: var(--malicious);"></span> Rogue IP Host (:8080)
+            </div>
+            <div class="chip" onclick="setAndScan('https://paypal.com@evil-phishing-gate.ru/login')">
+              <span class="chip-dot" style="background: var(--malicious);"></span> Userinfo @ Evasion
+            </div>
+            <div class="chip" onclick="setAndScan('javascript:alert(1)')">
+              <span class="chip-dot" style="background: var(--block);"></span> Dangerous Scheme (javascript:)
+            </div>
+            <div class="chip" onclick="setAndScan('http://bit.ly/3xSampleShortener')">
+              <span class="chip-dot" style="background: var(--suspicious);"></span> Shortener: bit.ly
+            </div>
+            <div class="chip" onclick="setAndScan('upi://pay?pa=merchant@upi&pn=Store&am=500')">
+              <span class="chip-dot" style="background: var(--primary);"></span> UPI QR: Non-Web Payload
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: SCANNER (Live Webcam + Image Upload + Testbench) -->
+      <div id="page-scanner" class="page">
+        <!-- Sub-tabs for Scanner -->
+        <div class="scanner-tabs">
+          <button class="tab-btn active" id="tab-webcam" onclick="switchScannerMode('webcam')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Live Webcam Scanner
+          </button>
+          <button class="tab-btn" id="tab-upload" onclick="switchScannerMode('upload')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Scan from Image
+          </button>
+          <button class="tab-btn" id="tab-bench" onclick="switchScannerMode('bench')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31L4.54 18A2 2 0 0 0 6.27 21h11.46a2 2 0 0 0 1.73-3L14 9.31V2"/></svg>
+            Security Testbench
+          </button>
+        </div>
+
+        <!-- Mode 1: Live Webcam Scanner -->
+        <div id="scanner-view-webcam" class="scanner-subview">
+          <div class="card" style="padding: 18px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <h3 style="font-size: 15px; font-weight: 800; color: var(--text);">Live Optical QR Viewfinder</h3>
+                <p style="font-size: 12px; color: var(--text-muted);">Point your camera at any physical QR code to scan.</p>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary" style="padding: 8px 14px; font-size: 12px;" onclick="startWebcam()">Start Camera</button>
+                <button class="btn btn-secondary" style="padding: 8px 14px; font-size: 12px;" onclick="stopWebcam()">Stop</button>
+              </div>
+            </div>
+
+            <!-- Video & Canvas container -->
+            <div class="webcam-container" id="webcam-box">
+              <video id="webcam-video" playsinline muted></video>
+              <canvas id="webcam-canvas"></canvas>
+              
+              <div class="webcam-overlay" id="webcam-overlay">
+                <div class="target-box">
+                  <div class="corner c-tl"></div>
+                  <div class="corner c-tr"></div>
+                  <div class="corner c-bl"></div>
+                  <div class="corner c-br"></div>
+                  <div class="laser-line"></div>
+                </div>
+                <div id="webcam-status-label" style="position: absolute; bottom: 20px; font-size: 12px; font-weight: 700; background: rgba(15, 23, 42, 0.9); color: var(--text); padding: 7px 16px; border-radius: 20px; border: 1px solid var(--border); letter-spacing: 0.3px;">
+                  Camera Starting
+                </div>
+              </div>
+
+              <!-- Permission / Error message overlay -->
+              <div id="webcam-error-box" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--surface); flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center;">
+                <div style="margin-bottom: 14px; color: var(--malicious);">
+                  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </div>
+                <h4 style="font-size: 16px; font-weight: bold; margin-bottom: 8px; color: var(--malicious);">Camera Stream Unavailable</h4>
+                <p id="webcam-error-msg" style="font-size: 13px; color: var(--text-muted); max-width: 440px; margin-bottom: 18px; line-height: 1.4;">
+                  Please allow camera access in your browser or use "Scan from Image" mode.
+                </p>
+                <button class="btn" onclick="switchScannerMode('upload')">Switch to Image Upload</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode 2: Scan from Image Upload -->
+        <div id="scanner-view-upload" class="scanner-subview" style="display: none;">
+          <div class="card">
+            <h3 style="font-size: 16px; margin-bottom: 12px; color: var(--text);">Upload QR Image or Screenshot</h3>
+            <div class="dropzone" id="dropzone" onclick="document.getElementById('file-input').click()">
+              <input type="file" id="file-input" accept="image/*" style="display: none;" onchange="handleFileSelect(this.files)">
+              <div class="dropzone-icon">
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+              </div>
+              <p style="font-weight: 800; margin-bottom: 6px; font-size: 15px; color: var(--text);">Click or Drag QR Image Here</p>
+              <p style="font-size: 12px; color: var(--text-muted);">Supports PNG, JPG, JPEG, and WebP (Single and Multi-QR Detection via OpenCV)</p>
+            </div>
+            <div id="upload-status" style="margin-top: 14px; font-size: 13px; text-align: center; color: var(--primary); font-weight: bold;"></div>
+          </div>
+        </div>
+
+        <!-- Mode 3: Developer Security Testbench -->
+        <div id="scanner-view-bench" class="scanner-subview" style="display: none;">
+          <div class="card">
+            <h3 style="font-size: 16px; margin-bottom: 8px; color: var(--text);">URL Security Testbench</h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">Evaluates destination risk without executing client-side scripts or opening the target.</p>
+            <input type="text" class="input-text" id="scanner-url-input" placeholder="http://paypa1-account-verify.xyz/login" style="width: 100%;">
+            <div style="margin-top: 14px;">
+              <button class="btn" style="width: 100%; justify-content: center;" onclick="scanUrlFromInput('scanner-url-input')">Run Defense Pipeline</button>
+            </div>
+            <div class="chip-wrap" style="margin-top: 18px;">
+              <div class="chip" onclick="setAndScan('https://www.google.com')"><span class="chip-dot" style="background: var(--safe);"></span> Safe Google</div>
+              <div class="chip" onclick="setAndScan('http://paypa1-security.xyz/login')"><span class="chip-dot" style="background: var(--malicious);"></span> PayPa1 Typosquat</div>
+              <div class="chip" onclick="setAndScan('http://192.168.1.105:8080/login.htm')"><span class="chip-dot" style="background: var(--malicious);"></span> Rogue IP Host</div>
+              <div class="chip" onclick="setAndScan('https://paypal.com@evil-phishing-gate.ru/login')"><span class="chip-dot" style="background: var(--malicious);"></span> Userinfo @ Trick</div>
+              <div class="chip" onclick="setAndScan('javascript:alert(1)')"><span class="chip-dot" style="background: var(--block);"></span> javascript: Scheme</div>
+              <div class="chip" onclick="setAndScan('http://bit.ly/3xSampleShortener')"><span class="chip-dot" style="background: var(--suspicious);"></span> bit.ly Shortener</div>
+              <div class="chip" onclick="setAndScan('upi://pay?pa=merchant@upi&pn=Store&am=500')"><span class="chip-dot" style="background: var(--primary);"></span> UPI QR Payload</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: RESULT -->
+      <div id="page-result" class="page">
+        <button class="btn btn-secondary" style="margin-bottom: 16px;" onclick="showPage('scanner')">Back to Scanner</button>
+
+        <div class="result-hero" id="result-hero-box">
+          <span class="badge" id="res-verdict-badge">VERDICT</span>
+          <div class="score-circle" id="res-score-circle">
+            <div class="score-num" id="res-score-num">0</div>
+            <div class="score-label">RISK SCORE</div>
+          </div>
+          <h3 id="res-action-title" style="font-size: 14px; letter-spacing: 1px; font-weight: 800; margin-bottom: 4px;">ACTION: ALLOW</h3>
+          <p id="res-timestamp" style="font-size: 11px; color: var(--text-muted);"></p>
+        </div>
+
+        <div class="card">
+          <div style="font-size: 10px; font-weight: 800; color: var(--text-muted); letter-spacing: 0.8px; margin-bottom: 8px;">SCANNED TARGET / DECODED PAYLOAD</div>
+          <div id="res-target-url" style="font-family: var(--font-mono); font-size: 14px; color: var(--text); word-break: break-all;"></div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <h4 style="font-size: 12px; font-weight: 800; color: var(--text-muted); letter-spacing: 0.5px;">MACHINE LEARNING</h4>
+              <span id="res-ml-badge" class="badge" style="font-size: 10px; padding: 2px 8px;">ANALYZED</span>
+            </div>
+            <div id="res-ml-prob" style="font-size: 20px; font-weight: 900; margin-bottom: 4px;">-</div>
+            <p id="res-ml-sub" style="font-size: 12px; color: var(--text-muted);">Random Forest Classifier</p>
+          </div>
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <h4 style="font-size: 12px; font-weight: 800; color: var(--text-muted); letter-spacing: 0.5px;">THREAT INTELLIGENCE</h4>
+              <span id="res-threat-badge" class="badge" style="font-size: 10px; padding: 2px 8px;">CHECKED</span>
+            </div>
+            <div id="res-threat-status" style="font-size: 20px; font-weight: 900; margin-bottom: 4px;">-</div>
+            <p id="res-threat-provider" style="font-size: 12px; color: var(--text-muted);">-</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size: 14px; margin-bottom: 14px; font-weight: 800; color: var(--text);">Explainable Threat Reasons</h3>
+          <div id="res-reasons-list"></div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size: 14px; margin-bottom: 14px; font-weight: 800; color: var(--text);">12 Heuristic Signal Breakdown</h3>
+          <div id="res-heuristics-list"></div>
+        </div>
+
+        <div id="res-action-gate-box" style="margin-top: 20px;"></div>
+      </div>
+
+      <!-- PAGE: HISTORY -->
+      <div id="page-history" class="page">
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+            <h3 style="font-size: 16px; font-weight: 800; color: var(--text);">Historical Scan Logs</h3>
+            <div style="display: flex; gap: 8px;">
+              <select class="input-text" id="history-filter-verdict" onchange="loadHistory()" style="padding: 6px 12px; font-size: 12px;">
+                <option value="">All Verdicts</option>
+                <option value="SAFE">Safe Only</option>
+                <option value="SUSPICIOUS">Suspicious Only</option>
+                <option value="MALICIOUS">Malicious Only</option>
+              </select>
+              <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="clearAllLogs()">Clear All</button>
+            </div>
+          </div>
+          <div style="overflow-x: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>TIME</th>
+                  <th>VERDICT</th>
+                  <th>RISK</th>
+                  <th>DESTINATION / PAYLOAD</th>
+                  <th>ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="history-tbody">
+                <tr><td colspan="5" class="empty-state">Loading scan logs...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: DASHBOARD -->
+      <div id="page-dashboard" class="page">
+        <div class="grid-4">
+          <div class="stat-card">
+            <div class="stat-title">TOTAL SCANS</div>
+            <div class="stat-value" id="dash-total-scans" style="color: var(--primary);">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">BLOCKED THREATS</div>
+            <div class="stat-value" id="dash-blocked" style="color: var(--malicious);">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">SAFE RATIO</div>
+            <div class="stat-value" id="dash-safe-ratio" style="color: var(--safe);">0%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">AVG RISK SCORE</div>
+            <div class="stat-value" id="dash-avg-risk" style="color: var(--suspicious);">0.0</div>
+          </div>
+        </div>
+
+        <div id="dash-empty-notice" class="card empty-state" style="display: none;">
+          <h3>No Security Activity Yet</h3>
+          <p>Scan a QR code or test a URL to begin building defensive cybersecurity analytics.</p>
+          <button class="btn" style="margin-top: 14px;" onclick="showPage('scanner')">Scan First QR Code</button>
+        </div>
+
+        <div id="dash-charts-section">
+          <div class="grid-2">
+            <div class="card">
+              <h3 style="font-size: 12px; color: var(--text-muted); font-weight: 800; letter-spacing: 0.8px; margin-bottom: 16px;">VERDICT BREAKDOWN</h3>
+              <div style="height: 220px; position: relative;">
+                <canvas id="verdictChart"></canvas>
+              </div>
+            </div>
+            <div class="card">
+              <h3 style="font-size: 12px; color: var(--text-muted); font-weight: 800; letter-spacing: 0.8px; margin-bottom: 16px;">RISK DISTRIBUTION (LOW / MED / HIGH)</h3>
+              <div style="height: 220px; position: relative;">
+                <canvas id="riskChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="font-size: 14px; margin-bottom: 14px; font-weight: 800; color: var(--text);">Top Inspected Destinations</h3>
+            <div style="overflow-x: auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>DOMAIN</th>
+                    <th>MAX RISK</th>
+                    <th>TOTAL SCANS</th>
+                  </tr>
+                </thead>
+                <tbody id="top-domains-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: SETTINGS -->
+      <div id="page-settings" class="page">
+        <div class="card">
+          <h3 style="font-size: 15px; margin-bottom: 12px; font-weight: 800; color: var(--text);">Engine Settings & Connectivity</h3>
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div>
+              <label style="font-size: 11px; font-weight: bold; color: var(--text-muted); letter-spacing: 0.5px;">API BASE URL</label>
+              <div class="input-group">
+                <input type="text" class="input-text" id="settings-base-url" value="http://127.0.0.1:8000">
+                <button class="btn" onclick="testConnection()">Ping & Test</button>
+              </div>
+            </div>
+            <div id="settings-ping-res"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size: 15px; margin-bottom: 12px; font-weight: 800; color: var(--text);">Scoring Policy Reference</h3>
+          <p style="font-size: 13px; line-height: 1.6; color: var(--text-muted);">
+            • <b style="color: var(--safe);">0 – 29 (SAFE / ALLOW)</b>: Clean heuristics, low ML probability, and clean reputation.<br>
+            • <b style="color: var(--suspicious);">30 – 69 (SUSPICIOUS / WARN)</b>: Anomalous structure or URL shorteners requiring user confirmation.<br>
+            • <b style="color: var(--malicious);">70 – 100 (MALICIOUS / BLOCK)</b>: Dangerous schemes (<code>javascript:</code>), brand typosquatting, rogue IP hosts, high ML probability, or threat feed hits.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: Multi-QR Selection -->
+  <div class="modal-backdrop" id="multi-qr-modal">
+    <div class="modal-card">
+      <h3 style="font-size: 17px; font-weight: 800; margin-bottom: 8px; color: var(--text);">Multiple QR Codes Detected</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+        QRadar detected multiple QR codes in the uploaded image. Please select which destination to inspect:
+      </p>
+      <div id="multi-qr-list" style="max-height: 280px; overflow-y: auto; margin-bottom: 16px;"></div>
+      <div style="display: flex; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="closeMultiQrModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let API_BASE = window.location.origin;
+    if (API_BASE === 'null' || !API_BASE || API_BASE.startsWith('file')) {
+      API_BASE = 'http://127.0.0.1:8000';
+    }
+    let verdictChartInstance = null;
+    let riskChartInstance = null;
+
+    // Webcam scanning state
+    let webcamStream = null;
+    let isWebcamScanning = false;
+    let lastDecodedPayload = null;
+    let lastScanTime = 0;
+    let animationFrameId = null;
+
+    function showPage(pageId) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+      const target = document.getElementById(`page-${pageId}`);
+      if (target) target.classList.add('active');
+
+      const titles = {
+        'home': 'Home Overview',
+        'scanner': 'Live QR Scanner & Testbench',
+        'result': 'Security Evaluation Result',
+        'history': 'Scan History Logs',
+        'dashboard': 'Security Analytics Dashboard',
+        'settings': 'Settings & Architecture'
+      };
+      document.getElementById('topbar-title').innerText = titles[pageId] || 'QRadar';
+
+      // Highlight active nav item
+      const navLinks = document.querySelectorAll('.nav-item');
+      navLinks.forEach(item => {
+        if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(pageId)) {
+          item.classList.add('active');
+        }
+      });
+
+      if (pageId === 'scanner') {
+        const webcamTab = document.getElementById('tab-webcam');
+        if (webcamTab && webcamTab.classList.contains('active')) {
+          startWebcam();
+        }
+      } else {
+        stopWebcam();
+      }
+
+      if (pageId === 'home') loadHomeStats();
+      if (pageId === 'dashboard') loadDashboard();
+      if (pageId === 'history') loadHistory();
+    }
+
+    function switchScannerMode(mode) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.scanner-subview').forEach(v => v.style.display = 'none');
+
+      document.getElementById(`tab-${mode}`).classList.add('active');
+      document.getElementById(`scanner-view-${mode}`).style.display = 'block';
+
+      if (mode === 'webcam') {
+        startWebcam();
+      } else {
+        stopWebcam();
+      }
+    }
+
+    function setScannerStatus(text, colorVar = 'var(--text)') {
+      const label = document.getElementById('webcam-status-label');
+      if (label) {
+        label.innerText = text;
+        label.style.color = colorVar;
+      }
+    }
+
+    // ==========================================
+    // LIVE WEBCAM QR SCANNER ENGINE
+    // ==========================================
+    async function startWebcam() {
+      const video = document.getElementById('webcam-video');
+      const errBox = document.getElementById('webcam-error-box');
+
+      if (!video || !errBox) return;
+
+      errBox.style.display = 'none';
+      setScannerStatus('Camera Starting', 'var(--primary)');
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showWebcamError('Your browser does not support HTML5 mediaDevices webcam access.');
+        return;
+      }
+
+      try {
+        if (webcamStream) {
+          stopWebcam();
+        }
+
+        webcamStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+
+        video.srcObject = webcamStream;
+        video.setAttribute('playsinline', true);
+        await video.play();
+
+        isWebcamScanning = true;
+        setScannerStatus('Camera Active', 'var(--safe)');
+        requestAnimationFrame(tickWebcam);
+      } catch (err) {
+        console.warn('Camera stream error:', err);
+        showWebcamError(err.message || 'Camera permission denied or camera device busy.');
+      }
+    }
+
+    function stopWebcam() {
+      isWebcamScanning = false;
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      if (webcamStream) {
+        webcamStream.getTracks().forEach(track => track.stop());
+        webcamStream = null;
+      }
+      const video = document.getElementById('webcam-video');
+      if (video) video.srcObject = null;
+    }
+
+    function showWebcamError(msg) {
+      stopWebcam();
+      const errBox = document.getElementById('webcam-error-box');
+      const errMsg = document.getElementById('webcam-error-msg');
+      if (errMsg && errBox) {
+        errMsg.innerText = `Camera unavailable (${msg}). You can allow browser permissions or use "Scan from Image" below.`;
+        errBox.style.display = 'flex';
+      }
+    }
+
+    function tickWebcam() {
+      if (!isWebcamScanning) return;
+      const video = document.getElementById('webcam-video');
+      const canvas = document.getElementById('webcam-canvas');
+
+      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.height = video.videoHeight;
+        canvas.width = video.videoWidth;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // Scan with jsQR
+        if (typeof jsQR !== 'undefined') {
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert',
+          });
+
+          if (code && code.data && code.data.trim().length > 0) {
+            const raw = code.data.trim();
+            const now = Date.now();
+            // Debounce 3.5s
+            if (raw !== lastDecodedPayload || (now - lastScanTime) > 3500) {
+              lastDecodedPayload = raw;
+              lastScanTime = now;
+              setScannerStatus('QR Code Detected', 'var(--primary)');
+              setScannerStatus('Decoding QR Code', 'var(--primary)');
+              stopWebcam();
+              scanUrl(raw);
+              return;
+            }
+          }
+        }
+      }
+
+      if (isWebcamScanning) {
+        animationFrameId = requestAnimationFrame(tickWebcam);
+      }
+    }
+
+    // ==========================================
+    // BACKEND COMMUNICATION & SECURITY SCANS
+    // ==========================================
+    async function checkHealth() {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        const data = await res.json();
+        document.getElementById('status-dot').className = 'status-dot';
+        document.getElementById('status-text').innerText = 'ONLINE';
+        document.getElementById('status-text').style.color = 'var(--safe)';
+      } catch (e) {
+        document.getElementById('status-dot').className = 'status-dot offline';
+        document.getElementById('status-text').innerText = 'OFFLINE';
+        document.getElementById('status-text').style.color = 'var(--malicious)';
+      }
+    }
+
+    async function loadHomeStats() {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/dashboard`);
+        const d = await res.json();
+        document.getElementById('home-total-scans').innerText = d.total_scans ?? 0;
+        document.getElementById('home-blocked').innerText = d.blocked_threats_count ?? 0;
+        document.getElementById('home-safe').innerText = d.verdict_counts ? d.verdict_counts.safe : 0;
+        document.getElementById('home-suspicious').innerText = d.verdict_counts ? d.verdict_counts.suspicious : 0;
+      } catch (e) {
+        console.error('Failed to load home stats:', e);
+      }
+    }
+
+    async function scanUrl(url) {
+      if (!url || !url.trim()) return;
+      showResultLoading();
+      setScannerStatus('Analyzing Security', 'var(--primary)');
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/scan/url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url.trim(), source: 'web_dashboard' })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const data = await res.json();
+        setScannerStatus('Analysis Complete', 'var(--safe)');
+        renderResult(data);
+      } catch (e) {
+        alert('Authoritative security evaluation failed: ' + e.message);
+        showPage('scanner');
+      }
+    }
+
+    function scanUrlFromInput(id) {
+      const val = document.getElementById(id).value;
+      scanUrl(val);
+    }
+
+    function setAndScan(url) {
+      document.getElementById('home-url-input').value = url;
+      document.getElementById('scanner-url-input').value = url;
+      scanUrl(url);
+    }
+
+    async function handleFileSelect(files) {
+      if (!files || files.length === 0) return;
+      const file = files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const statusEl = document.getElementById('upload-status');
+      statusEl.innerText = 'Decoding QR Code...';
+      try {
+        statusEl.innerText = 'Analyzing Security...';
+        const res = await fetch(`${API_BASE}/api/v1/scan/image`, {
+          method: 'POST',
+          body: formData
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const data = await res.json();
+        statusEl.innerText = 'Analysis Complete';
+
+        if (data.total_found && data.qr_codes) {
+          showMultiQrModal(data.qr_codes);
+        } else {
+          renderResult(data);
+        }
+      } catch (e) {
+        statusEl.innerText = 'Upload failed: ' + e.message;
+      }
+    }
+
+    function showMultiQrModal(qrCodes) {
+      const listDiv = document.getElementById('multi-qr-list');
+      listDiv.innerHTML = qrCodes.map((item, idx) => `
+        <div class="multi-qr-item">
+          <div>
+            <div style="font-weight: bold; font-size: 12px; color: var(--primary);">QR Code #${item.index + 1}</div>
+            <div style="font-family: var(--font-mono); font-size: 12px; color: var(--text); word-break: break-all; max-width: 380px;">${item.content}</div>
+          </div>
+          <button class="btn" style="padding: 6px 14px; font-size: 12px;" onclick="selectMultiQr('${encodeURIComponent(item.content)}')">Inspect</button>
+        </div>
+      `).join('');
+      document.getElementById('multi-qr-modal').style.display = 'flex';
+    }
+
+    function closeMultiQrModal() {
+      document.getElementById('multi-qr-modal').style.display = 'none';
+    }
+
+    function selectMultiQr(encodedContent) {
+      closeMultiQrModal();
+      scanUrl(decodeURIComponent(encodedContent));
+    }
+
+    function showResultLoading() {
+      showPage('result');
+      document.getElementById('res-target-url').innerText = 'Analyzing decoded payload across security heuristics, ML, and threat intelligence...';
+      document.getElementById('res-score-num').innerText = '...';
+      document.getElementById('res-action-title').innerText = 'ANALYZING SECURITY...';
+      document.getElementById('res-reasons-list').innerHTML = '<div style="padding: 12px; color: var(--text-muted);">Evaluating authoritative security pipeline...</div>';
+      document.getElementById('res-heuristics-list').innerHTML = '';
+      document.getElementById('res-action-gate-box').innerHTML = '';
+    }
+
+    function renderResult(data) {
+      showPage('result');
+      const v = data.verdict;
+      const isMalicious = v === 'MALICIOUS';
+      const isSuspicious = v === 'SUSPICIOUS';
+
+      const color = isMalicious ? 'var(--malicious)' : (isSuspicious ? 'var(--suspicious)' : 'var(--safe)');
+
+      const box = document.getElementById('result-hero-box');
+      box.style.borderColor = color;
+      box.style.background = 'var(--surface)';
+
+      const badge = document.getElementById('res-verdict-badge');
+      badge.className = `badge badge-${v.toLowerCase()}`;
+      badge.innerText = (isMalicious ? '✕ ' : (isSuspicious ? '⚠ ' : '✓ ')) + v;
+
+      const circle = document.getElementById('res-score-circle');
+      circle.style.borderColor = color;
+      circle.style.color = color;
+      document.getElementById('res-score-num').innerText = data.risk_score;
+
+      document.getElementById('res-action-title').innerText = `RECOMMENDED ACTION: ${data.recommended_action}`;
+      document.getElementById('res-action-title').style.color = color;
+      document.getElementById('res-timestamp').innerText = `Analyzed at ${new Date(data.analyzed_at).toLocaleString()}`;
+
+      document.getElementById('res-target-url').innerText = data.normalized_url || data.original_content;
+
+      // Check if this payload is non-web (UPI, WiFi, vCard, text)
+      const isNonWeb = data.content_type !== 'url' || (data.ml && data.ml.status === 'NOT_APPLICABLE');
+
+      // 1. Machine Learning Card Rendering
+      const mlBadge = document.getElementById('res-ml-badge');
+      const mlProb = document.getElementById('res-ml-prob');
+      const mlSub = document.getElementById('res-ml-sub');
+
+      if (isNonWeb || (data.ml && data.ml.status === 'NOT_APPLICABLE')) {
+        mlBadge.className = 'badge';
+        mlBadge.style.background = 'var(--surface-elevated)';
+        mlBadge.style.color = 'var(--text-muted)';
+        mlBadge.innerText = 'NOT APPLICABLE';
+        mlProb.innerText = 'NOT APPLICABLE';
+        mlProb.style.color = 'var(--text-muted)';
+        mlSub.innerText = (data.ml && data.ml.reason) ? data.ml.reason : 'Non-web QR payload';
+      } else if (data.ml && data.ml.status === 'ANALYZED' && data.ml.phishing_probability !== null) {
+        const isPhish = data.ml.phishing_probability >= 0.5;
+        const pred = data.ml.prediction || (isPhish ? 'Phishing' : 'Legitimate');
+        const probPct = Math.round(data.ml.phishing_probability * 100);
+        
+        mlBadge.className = isPhish ? 'badge badge-malicious' : 'badge badge-safe';
+        mlBadge.innerText = 'ANALYZED';
+        mlProb.innerText = pred;
+        mlProb.style.color = isPhish ? 'var(--malicious)' : 'var(--safe)';
+        mlSub.innerText = `Phishing Probability: ${probPct}% (${data.ml.model_name || 'Random Forest'})`;
+      } else {
+        mlBadge.className = 'badge badge-suspicious';
+        mlBadge.innerText = 'UNAVAILABLE';
+        mlProb.innerText = 'Unavailable';
+        mlProb.style.color = 'var(--suspicious)';
+        mlSub.innerText = (data.ml && data.ml.reason) ? data.ml.reason : 'Model unavailable / uninitialized';
+      }
+
+      // 2. Threat Intelligence Card Rendering
+      const tiBadge = document.getElementById('res-threat-badge');
+      const tiStatus = document.getElementById('res-threat-status');
+      const tiProv = document.getElementById('res-threat-provider');
+      const ti = data.threat_intelligence || {};
+      const statusUpper = (ti.status || '').toUpperCase();
+
+      if (isNonWeb || statusUpper === 'NOT_APPLICABLE') {
+        tiBadge.className = 'badge';
+        tiBadge.style.background = 'var(--surface-elevated)';
+        tiBadge.style.color = 'var(--text-muted)';
+        tiBadge.innerText = 'NOT APPLICABLE';
+        tiStatus.innerText = 'NOT APPLICABLE';
+        tiStatus.style.color = 'var(--text-muted)';
+        tiProv.innerText = ti.message || ti.reason || 'No web URL/domain to check';
+      } else if (statusUpper === 'NOT_CONFIGURED') {
+        tiBadge.className = 'badge badge-suspicious';
+        tiBadge.innerText = 'NOT CONFIGURED';
+        tiStatus.innerText = 'Not Configured';
+        tiStatus.style.color = 'var(--suspicious)';
+        tiProv.innerText = 'External threat intelligence is currently unavailable (API key missing).';
+      } else if (statusUpper === 'UNAVAILABLE') {
+        tiBadge.className = 'badge badge-suspicious';
+        tiBadge.innerText = 'UNAVAILABLE';
+        tiStatus.innerText = 'Unavailable';
+        tiStatus.style.color = 'var(--suspicious)';
+        tiProv.innerText = `${ti.provider || 'Provider'}: ${ti.message || ti.reason || 'Service temporarily unreachable'}`;
+      } else if (statusUpper === 'THREAT_FOUND' || statusUpper === 'KNOWN_MALICIOUS' || (ti.malicious_count !== null && ti.malicious_count > 0)) {
+        tiBadge.className = 'badge badge-malicious';
+        tiBadge.innerText = 'THREAT FOUND';
+        tiStatus.innerText = ti.malicious_count !== null ? `Malicious (${ti.malicious_count})` : 'Threat Found';
+        tiStatus.style.color = 'var(--malicious)';
+        tiProv.innerText = `Provider: ${ti.provider || 'Threat Feed'}${ti.suspicious_count ? ` (Suspicious: ${ti.suspicious_count})` : ''}`;
+      } else if (statusUpper === 'SUSPICIOUS' || (ti.suspicious_count !== null && ti.suspicious_count > 0)) {
+        tiBadge.className = 'badge badge-suspicious';
+        tiBadge.innerText = 'SUSPICIOUS';
+        tiStatus.innerText = ti.suspicious_count !== null ? `Suspicious (${ti.suspicious_count})` : 'Suspicious Signal';
+        tiStatus.style.color = 'var(--suspicious)';
+        tiProv.innerText = `Provider: ${ti.provider || 'Threat Feed'}`;
+      } else if (statusUpper === 'NO_RECORD') {
+        tiBadge.className = 'badge';
+        tiBadge.style.background = 'var(--surface-elevated)';
+        tiBadge.style.color = 'var(--primary)';
+        tiBadge.innerText = 'NO RECORD';
+        tiStatus.innerText = 'Not Previously Seen';
+        tiStatus.style.color = 'var(--text)';
+        tiProv.innerText = `Provider: ${ti.provider || 'Threat Feed'} (No prior record)`;
+      } else if (statusUpper === 'NO_THREAT_FOUND' || statusUpper === 'CLEAN') {
+        tiBadge.className = 'badge badge-safe';
+        tiBadge.innerText = 'CHECKED';
+        tiStatus.innerText = 'No Threat Found';
+        tiStatus.style.color = 'var(--safe)';
+        tiProv.innerText = `Provider: ${ti.provider || 'Threat Feed'}`;
+      } else {
+        tiBadge.className = 'badge';
+        tiBadge.innerText = ti.status || 'UNKNOWN';
+        tiStatus.innerText = ti.status || 'Evaluated';
+        tiStatus.style.color = 'var(--text-muted)';
+        tiProv.innerText = `Provider: ${ti.provider || 'Local'}`;
+      }
+
+      // 3. Clear Explainable Reasons
+      const reasonsDiv = document.getElementById('res-reasons-list');
+      let reasonsHtml = '';
+
+      if (v === 'SAFE') {
+        reasonsHtml += `
+          <div style="padding: 12px 14px; background: var(--safe-bg); border-radius: 8px; margin-bottom: 8px; font-size: 13px; border-left: 3px solid var(--safe); color: var(--text);">
+            <b style="color: var(--safe);">Safe Verdict:</b> No suspicious indicators were detected. The destination matches standard safe patterns and passed security checks.
+          </div>
+        `;
+      } else if (v === 'SUSPICIOUS') {
+        reasonsHtml += `
+          <div style="padding: 12px 14px; background: var(--suspicious-bg); border-radius: 8px; margin-bottom: 8px; font-size: 13px; border-left: 3px solid var(--suspicious); color: var(--text);">
+            <b style="color: var(--suspicious);">Suspicious Verdict:</b> Anomalous characteristics or concealed redirects were detected. Exercise caution and verify destination identity before proceeding.
+          </div>
+        `;
+      } else if (v === 'MALICIOUS') {
+        reasonsHtml += `
+          <div style="padding: 12px 14px; background: var(--malicious-bg); border-radius: 8px; margin-bottom: 8px; font-size: 13px; border-left: 3px solid var(--malicious); color: var(--text);">
+            <b style="color: var(--malicious);">Threat Blocked:</b> Severe security risk detected (such as brand typosquatting, dangerous scheme, rogue server, high ML probability, or threat feed hit). Access is restricted.
+          </div>
+        `;
+      }
+
+      if (data.reasons && data.reasons.length > 0) {
+        reasonsHtml += data.reasons.map(r => `
+          <div style="padding: 10px 14px; background: var(--surface-elevated); border-radius: 8px; margin-bottom: 6px; font-size: 13px; border-left: 3px solid ${color}; color: var(--text);">
+            &bull; ${r}
+          </div>
+        `).join('');
+      }
+
+      reasonsDiv.innerHTML = reasonsHtml;
+
+      // 4. 12 Heuristic Signals Breakdown
+      const hDiv = document.getElementById('res-heuristics-list');
+      if (data.heuristics && data.heuristics.length > 0) {
+        hDiv.innerHTML = data.heuristics.map(h => `
+          <div class="indicator-item ${h.triggered ? 'triggered' : ''}">
+            <div class="indicator-status-icon ${h.triggered ? 'alert' : 'clean'}">
+              ${h.triggered ? '✕' : '✓'}
+            </div>
+            <div style="flex-grow: 1;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <b style="color: var(--text); font-size: 13px;">${h.name}</b>
+                ${h.triggered ? `<span style="color: var(--malicious); font-size: 11px; font-weight: bold;">+${h.score_contribution} pts</span>` : '<span style="color: var(--safe); font-size: 11px; font-weight: bold;">Clean</span>'}
+              </div>
+              <div style="font-size: 12px; color: var(--text-muted);">${h.explanation}</div>
+              ${h.evidence ? `<div style="font-family: var(--font-mono); font-size: 11px; color: var(--primary); margin-top: 4px;">${h.evidence}</div>` : ''}
+            </div>
+          </div>
+        `).join('');
+      } else {
+        hDiv.innerHTML = `
+          <div style="padding: 16px; background: var(--surface-elevated); border-radius: 10px; text-align: center; color: var(--text-muted); font-size: 13px;">
+            Non-web QR payload format. Standard web URL heuristics not applicable. Content evaluated for dangerous scheme execution.
+          </div>
+        `;
+      }
+
+      // 5. Action Gate Box (NEVER auto-opens URL)
+      const gate = document.getElementById('res-action-gate-box');
+      if (isMalicious) {
+        gate.innerHTML = `
+          <div style="padding: 20px; background: var(--malicious-bg); border: 1.5px solid var(--malicious); border-radius: 14px; text-align: center;">
+            <h4 style="color: var(--malicious); font-size: 15px; font-weight: 900; margin-bottom: 6px;">DESTINATION ACCESS BLOCKED</h4>
+            <p style="font-size: 12px; color: var(--text-muted);">QRadar policy prevented automatic navigation to this hazardous destination to protect your credentials and device.</p>
+          </div>
+        `;
+      } else if (isSuspicious) {
+        gate.innerHTML = `
+          <div style="display: flex; gap: 12px;">
+            <button class="btn btn-warning" style="flex-grow: 1; justify-content: center;" onclick="confirmOpen('${data.normalized_url || data.original_content}', true)">Proceed with Caution (Confirm)</button>
+          </div>
+        `;
+      } else {
+        gate.innerHTML = `
+          <div style="display: flex; gap: 12px;">
+            <button class="btn" style="flex-grow: 1; justify-content: center;" onclick="confirmOpen('${data.normalized_url || data.original_content}', false)">Open Destination in Browser (Confirm)</button>
+          </div>
+        `;
+      }
+    }
+
+    function confirmOpen(url, isWarn) {
+      if (isWarn) {
+        if (confirm(`CAUTION: This destination was flagged with SUSPICIOUS signals.\n\nTarget: ${url}\n\nDo you want to proceed anyway?`)) {
+          window.open(url, '_blank');
+        }
+      } else {
+        if (confirm(`You are about to navigate to:\n${url}\n\nProceed?`)) {
+          window.open(url, '_blank');
+        }
+      }
+    }
+
+    async function loadDashboard() {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/dashboard`);
+        const d = await res.json();
+
+        document.getElementById('dash-total-scans').innerText = d.total_scans ?? 0;
+        document.getElementById('dash-blocked').innerText = d.blocked_threats_count ?? 0;
+        document.getElementById('dash-safe-ratio').innerText = d.total_scans > 0 ? `${Math.round(((d.verdict_counts ? d.verdict_counts.safe : 0) / d.total_scans) * 100)}%` : '0%';
+        document.getElementById('dash-avg-risk').innerText = `${d.average_risk_score ?? 0}/100`;
+
+        if (!d.total_scans || d.total_scans === 0) {
+          document.getElementById('dash-empty-notice').style.display = 'block';
+          document.getElementById('dash-charts-section').style.display = 'none';
+          return;
+        }
+
+        document.getElementById('dash-empty-notice').style.display = 'none';
+        document.getElementById('dash-charts-section').style.display = 'block';
+
+        // Verdict Doughnut Chart (SAFE: #22C55E, SUSPICIOUS: #F59E0B, MALICIOUS: #EF4444)
+        const vCtx = document.getElementById('verdictChart').getContext('2d');
+        if (verdictChartInstance) verdictChartInstance.destroy();
+        verdictChartInstance = new Chart(vCtx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Safe', 'Suspicious', 'Malicious'],
+            datasets: [{
+              data: [d.verdict_counts.safe, d.verdict_counts.suspicious, d.verdict_counts.malicious],
+              backgroundColor: ['#22C55E', '#F59E0B', '#EF4444'],
+              borderColor: '#162235',
+              borderWidth: 3
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: {
+                  color: '#94A3B8',
+                  font: { family: 'Outfit', size: 12, weight: '600' },
+                  boxWidth: 10,
+                  boxHeight: 10,
+                  usePointStyle: true,
+                  pointStyle: 'circle'
+                }
+              }
+            }
+          }
+        });
+
+        // Risk Bar Chart (0-29 Low: #22C55E, 30-69 Med: #F59E0B, 70-100 High: #EF4444)
+        const rCtx = document.getElementById('riskChart').getContext('2d');
+        if (riskChartInstance) riskChartInstance.destroy();
+        riskChartInstance = new Chart(rCtx, {
+          type: 'bar',
+          data: {
+            labels: ['0-29 Low', '30-69 Med', '70-100 High'],
+            datasets: [{
+              data: [d.risk_distribution.safe, d.risk_distribution.suspicious, d.risk_distribution.malicious],
+              backgroundColor: ['#22C55E', '#F59E0B', '#EF4444'],
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: {
+                ticks: { color: '#94A3B8', font: { family: 'Outfit', size: 11 } },
+                grid: { display: false }
+              },
+              y: {
+                ticks: { color: '#94A3B8', stepSize: 1, font: { family: 'Outfit', size: 11 } },
+                grid: { color: '#334155' }
+              }
+            }
+          }
+        });
+
+        // Top Domains Table
+        const domTbody = document.getElementById('top-domains-tbody');
+        if (!d.top_scanned_domains || d.top_scanned_domains.length === 0) {
+          domTbody.innerHTML = '<tr><td colspan="4" class="empty-state">No domains inspected yet.</td></tr>';
+        } else {
+          domTbody.innerHTML = d.top_scanned_domains.map((item, idx) => `
+            <tr>
+              <td style="color: var(--text-muted); font-weight: bold;">${idx + 1}</td>
+              <td style="font-weight: 600; color: var(--text);">${item.domain}</td>
+              <td><span class="badge ${item.highest_risk >= 70 ? 'badge-malicious' : (item.highest_risk >= 30 ? 'badge-suspicious' : 'badge-safe')}">Risk ${item.highest_risk}</span></td>
+              <td style="font-weight: 800; color: var(--primary);">${item.count}x</td>
+            </tr>
+          `).join('');
+        }
+      } catch (e) {
+        console.error('Failed to load dashboard:', e);
+      }
+    }
+
+    async function loadHistory() {
+      try {
+        const filter = document.getElementById('history-filter-verdict').value;
+        const url = filter ? `${API_BASE}/api/v1/scans?verdict=${filter}` : `${API_BASE}/api/v1/scans`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        const tbody = document.getElementById('history-tbody');
+        if (!data || data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><h3>No scan logs found</h3><p>Scan records will appear here.</p></td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.map(item => `
+          <tr>
+            <td style="color: var(--text-muted); font-size: 11px;">${new Date(item.created_at).toLocaleTimeString()}</td>
+            <td><span class="badge badge-${item.verdict.toLowerCase()}">${(item.verdict === 'MALICIOUS' ? '✕ ' : (item.verdict === 'SUSPICIOUS' ? '⚠ ' : '✓ ')) + item.verdict}</span></td>
+            <td><b>${item.risk_score}</b>/100</td>
+            <td style="font-family: var(--font-mono); font-size: 12px; color: var(--text); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              ${item.normalized_url || item.original_content}
+            </td>
+            <td><button class="chip" onclick="scanUrl('${item.original_content.replace(/'/g, "\\'")}')">Re-Inspect</button></td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        console.error('Failed to load history:', e);
+      }
+    }
+
+    async function clearAllLogs() {
+      if (!confirm('Clear all stored scan logs from the local database?')) return;
+      await fetch(`${API_BASE}/api/v1/scans`, { method: 'DELETE' });
+      loadHistory();
+      loadHomeStats();
+      if (document.getElementById('page-dashboard').classList.contains('active')) {
+        loadDashboard();
+      }
+    }
+
+    async function testConnection() {
+      const u = document.getElementById('settings-base-url').value.trim();
+      const statusEl = document.getElementById('settings-ping-res');
+      statusEl.innerHTML = '<div style="color: var(--primary); font-weight: bold; font-size: 13px;">Pinging backend...</div>';
+      try {
+        const res = await fetch(`${u}/health`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const d = await res.json();
+        statusEl.innerHTML = `
+          <div style="padding: 12px 14px; background: var(--safe-bg); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 10px; margin-top: 10px;">
+            <div style="color: var(--safe); font-weight: 800; font-size: 14px; margin-bottom: 4px;">✓ Backend Connected</div>
+            <div style="font-size: 12px; color: var(--text-muted); font-weight: 500;">
+              Service: <b>${d.service || 'QRadar'}</b> &bull; Version: <b>${d.version || '1.0.0'}</b> &bull; ML Engine: <b>${d.ml_model_available ? 'Active (Random Forest)' : 'Fallback'}</b> &bull; Threat Intel: <b>${d.threat_intel_provider || 'Mock Provider'}</b>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        statusEl.innerHTML = `
+          <div style="padding: 12px 14px; background: var(--malicious-bg); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 10px; margin-top: 10px;">
+            <div style="color: var(--malicious); font-weight: 800; font-size: 14px; margin-bottom: 4px;">✕ Backend Unreachable</div>
+            <div style="font-size: 12px; color: var(--text-muted); font-weight: 500;">
+              Unable to reach API endpoint at <code>${u}</code> (${err.message || 'Connection Refused'}). Please ensure the FastAPI backend server is active.
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // Initialize
+    checkHealth();
+    loadHomeStats();
+  </script>
+</body>
+</html>
