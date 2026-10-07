@@ -1,49 +1,31 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "services": {
-    "app": {
+    "web": {
       "root": "public"
-    },
-    "backend": {
-      "root": "backend",
-      "entrypoint": "app/main.py"
     }
   },
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": {
-        "service": "backend"
-      }
+      "source": "/api/v1/:path*",
+      "destination": "https://q-rader-backend.onrender.com/api/v1/:path*"
     },
     {
       "source": "/health",
-      "destination": {
-        "service": "backend"
-      }
+      "destination": "https://q-rader-backend.onrender.com/health"
     },
     {
       "source": "/docs",
-      "destination": {
-        "service": "backend"
-      }
-    },
-    {
-      "source": "/redoc",
-      "destination": {
-        "service": "backend"
-      }
+      "destination": "https://q-rader-backend.onrender.com/docs"
     },
     {
       "source": "/openapi.json",
-      "destination": {
-        "service": "backend"
-      }
+      "destination": "https://q-rader-backend.onrender.com/openapi.json"
     },
     {
       "source": "/(.*)",
       "destination": {
-        "service": "app"
+        "service": "web"
       }
     }
   ]
