@@ -77,3 +77,8 @@ venv.bak/
 *~
 .DS_Store
 Thumbs.db
+
+# Executables & Tunnels
+*.exe
+cloudflared.exe
+

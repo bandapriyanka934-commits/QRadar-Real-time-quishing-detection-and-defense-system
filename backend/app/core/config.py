@@ -3,8 +3,10 @@ Application Configuration and Environment Settings for QRadar.
 Configures backend parameters, security weights, rate limiting, and threat intelligence.
 """
 
+import json
 import os
-from typing import List
+from typing import List, Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,8 +23,38 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./qradar.db"
     SYNC_DATABASE_URL: str = "sqlite:///./qradar.db"
 
-    # CORS Configuration
-    CORS_ORIGINS: List[str] = ["*"]
+    # CORS Configuration - Production safe defaults (specific origins rather than wildcard)
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+    ]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value: Union[str, List[str]]) -> List[str]:
+        """Parses CORS origins from JSON list, comma-separated string, or Python list."""
+        if isinstance(value, str):
+            val_trimmed = value.strip()
+            if not val_trimmed:
+                return []
+            if val_trimmed.startswith("[") and val_trimmed.endswith("]"):
+                try:
+                    parsed = json.loads(val_trimmed)
+                    if isinstance(parsed, list):
+                        return [str(item).strip().rstrip("/") for item in parsed if str(item).strip()]
+                except Exception:
+                    pass
+            # Split comma-separated string
+            return [origin.strip().rstrip("/") for origin in val_trimmed.split(",") if origin.strip()]
+        elif isinstance(value, (list, tuple)):
+            return [str(item).strip().rstrip("/") for item in value if str(item).strip()]
+        return value
 
     # ML Model Artifacts & Consistency
     ML_MODEL_PATH: str = os.path.join("ml", "models", "phishing_rf_model.joblib")
@@ -74,3 +106,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+

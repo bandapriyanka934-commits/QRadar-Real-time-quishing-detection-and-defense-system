@@ -205,8 +205,14 @@ class VirusTotalProvider(ThreatIntelProvider):
     """VirusTotal v3 URL Analysis Provider with truthful error reporting."""
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = (api_key if api_key is not None else settings.VIRUSTOTAL_API_KEY).strip()
+        self._api_key = api_key
         self.provider_name = "VirusTotal"
+
+    @property
+    def api_key(self) -> str:
+        if self._api_key is not None:
+            return self._api_key.strip()
+        return (settings.VIRUSTOTAL_API_KEY or "").strip()
 
     async def check_url(self, url: str) -> Dict[str, Any]:
         start_time = time.perf_counter()
@@ -383,8 +389,14 @@ class GoogleSafeBrowsingProvider(ThreatIntelProvider):
     """Google Safe Browsing v4 Lookup API Provider with truthful error reporting."""
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = (api_key if api_key is not None else settings.GSB_API_KEY).strip()
+        self._api_key = api_key
         self.provider_name = "Google Safe Browsing"
+
+    @property
+    def api_key(self) -> str:
+        if self._api_key is not None:
+            return self._api_key.strip()
+        return (settings.GSB_API_KEY or "").strip()
 
     async def check_url(self, url: str) -> Dict[str, Any]:
         start_time = time.perf_counter()

@@ -230,41 +230,77 @@ To ensure mission-critical safety, the following rules take strict precedence ov
 
 ---
 
-## 8. Quick Start & Execution
+## 8. Deployment & Online Configuration
 
-### 8.1 Option A: Local Development (Python)
+### 8.1 Online Website Architecture
+QRadar is fully configured to operate as a real online website. The frontend and backend can be hosted together or deployed to separated domains:
+
+- **Frontend Domain Example**: `https://qradar.yourdomain.com`
+- **Backend API Domain Example**: `https://api.qradar.yourdomain.com`
+
+```
+User Browser
+    ↓
+QRadar Frontend (HTTPS)
+    ↓ API Requests
+FastAPI Backend (Authoritative Security Engine)
+    ├── Layer 1: URL Analyzer & SSRF Guard
+    ├── Layer 2: 12 Heuristic Threat Rules
+    ├── Layer 3: Random Forest Machine Learning (18 features)
+    ├── Layer 4: Live Threat Intelligence (VirusTotal / Google Safe Browsing)
+    └── Layer 5: Unified Risk Engine (0-100 Scorer)
+    ↓
+SQLite Database (Persistent Scans, Cache & Analytics)
+    ↓
+Results, History Logs, and Dashboard
+```
+
+### 8.2 Production Environment Configuration (.env)
+Copy `backend/.env.example` to `backend/.env` and configure your production parameters:
+
 ```bash
-# 1. Install dependencies
+# Environment
+ENVIRONMENT=production
+DEBUG=False
+
+# Database
+DATABASE_URL=sqlite+aiosqlite:///./qradar.db
+SYNC_DATABASE_URL=sqlite:///./qradar.db
+
+# CORS Configuration (Set your exact frontend production domain(s))
+CORS_ORIGINS=https://qradar.yourdomain.com,https://app.yourdomain.com
+
+# Threat Intelligence (VirusTotal v3 or Google Safe Browsing v4)
+THREAT_INTEL_PROVIDER=virustotal
+VIRUSTOTAL_API_KEY=your_virustotal_api_key_here
+GSB_API_KEY=your_google_safe_browsing_api_key_here
+THREAT_INTEL_TIMEOUT_SECONDS=3.0
+THREAT_INTEL_CACHE_TTL_HOURS=24
+
+# Security Guards
+RESOLVE_SHORTENERS=False
+RATE_LIMIT_ENABLED=True
+RATE_LIMIT_PER_MINUTE=60
+```
+
+### 8.3 Running the Application
+
+#### Option A: Production Server (HTTPS / Reverse Proxy)
+Run Uvicorn behind a production reverse proxy (Nginx, Caddy, Cloudflare) terminating TLS:
+```bash
+cd backend
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+```
+
+#### Option B: Local Development
+```bash
 cd backend
 pip install -r requirements.txt
-
-# 2. Start FastAPI Server
 python -m uvicorn app.main:app --app-dir . --host 127.0.0.1 --port 8000 --reload
 ```
-- **Web UI & Dashboard**: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
+- **Web Application & Dashboard**: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
 - **Swagger Documentation**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - **Health Check**: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
-
-### 8.2 Option B: Docker & Docker Compose
-```bash
-# In project root
-docker compose up --build
-```
-
-### 8.3 Flutter Mobile Application Setup
-```bash
-cd mobile
-flutter pub get
-
-# Run on Web (Chrome)
-flutter run -d chrome
-
-# Run on Android Emulator (automatically uses http://10.0.2.2:8000)
-flutter run
-
-# Run on Physical Device (over local Wi-Fi)
-# Enter your host computer's LAN IP (e.g., http://192.168.1.100:8000) in the app Settings tab.
-```
 
 ---
 
@@ -293,21 +329,20 @@ python -m pytest backend/tests -v
 
 | Test Suite / Component | Scope | Tests | Status |
 |---|---|---|---|
-| `test_api_endpoints.py` | Health check, scan endpoints, image upload, history pagination, dashboard | 6 | **PASS** |
-| `test_heuristics.py` | Levenshtein distance, homoglyphs, all 12 individual indicators | 13 | **PASS** |
-| `test_ml_engine.py` | Shannon entropy, 18-feature vector extraction, inference, non-web payloads | 4 | **PASS** |
-| `test_risk_engine.py` | 0–29 / 30–69 / 70–100 boundary thresholds, precedence rules, overrides | 7 | **PASS** |
-| `test_threat_intel_scenarios.py` | 7 normalized TI states, timeouts, rate limits, SQLite TTL caching | 14 | **PASS** |
-| `test_offline_resilience.py` | Offline DB fallback, complete pipeline scan without internet, static assets | 4 | **PASS** |
-| `test_ssrf_and_ratelimit.py` | Private/loopback IPv4 & IPv6, hop-limited resolution, in-memory rate limiter | 5 | **PASS** |
-| `test_url_analyzer.py` | Scheme trapping, contact formats, IPv6 parsing, public domain resolution | 5 | **PASS** |
-| **Total Automated Tests** | **Full Backend Security Engine Verification** | **58** | **58 / 58 PASS (100%)** |
-| **Flutter Mobile Client** | Android / iOS / Web client codebase | Code Audit | **AUDITED & VERIFIED** *(Note: Host lacks Flutter CLI)* |
-| **Docker Containerization** | `Dockerfile` & `docker-compose.yml` | Code Audit | **AUDITED & CONFIGURED** *(Note: Host lacks Docker CLI)* |
+| `test_online_website_e2e.py` | 18 Required Online Tests: Health, Scanner, Heuristics, ML, TI, Cache, SSRF, CORS, Rate Limiting | 18 | **18 / 18 PASS** |
+| `test_api_endpoints.py` | Health check, scan endpoints, image upload, history pagination, dashboard | 6 | **6 / 6 PASS** |
+| `test_heuristics.py` | Levenshtein distance, homoglyphs, all 12 individual indicators | 13 | **13 / 13 PASS** |
+| `test_ml_engine.py` | Shannon entropy, 18-feature vector extraction, inference, non-web payloads | 4 | **4 / 4 PASS** |
+| `test_risk_engine.py` | 0–29 / 30–69 / 70–100 boundary thresholds, precedence rules, overrides | 7 | **7 / 7 PASS** |
+| `test_threat_intel_scenarios.py` | 7 normalized TI states, timeouts, rate limits, SQLite TTL caching | 14 | **14 / 14 PASS** |
+| `test_offline_resilience.py` | Offline DB fallback, complete pipeline scan without internet, static assets | 4 | **4 / 4 PASS** |
+| `test_ssrf_and_ratelimit.py` | Private/loopback IPv4 & IPv6, hop-limited resolution, in-memory rate limiter | 5 | **5 / 5 PASS** |
+| `test_url_analyzer.py` | Scheme trapping, contact formats, IPv6 parsing, public domain resolution | 5 | **5 / 5 PASS** |
+| **Total Automated Tests** | **Full End-to-End Online Security Engine Verification** | **76** | **76 / 76 PASS (100%)** |
 
 ---
 
-## 11. Known Limitations & Future Scope
+## 11. Known Limitations & Deployment Notes
 
 1. **Client-Side Rendering in Headless Mode**: Headless web page visual inspection (DOM rendering, screenshot similarity comparison) requires browser automation (e.g. Playwright) not enabled in lightweight microservices.
 2. **DNS Record WHOIS Telemetry**: Domain age lookups require WHOIS network queries which are subject to external rate-limiting and timeouts.
@@ -318,3 +353,4 @@ python -m pytest backend/tests -v
 ## 12. Academic Integrity & License
 
 Developed as a University Capstone Project in Advanced Defensive Cybersecurity, Machine Learning, and Mobile Application Development. Designed for defensive educational demonstrations, security research, and real-world quishing defense.
+

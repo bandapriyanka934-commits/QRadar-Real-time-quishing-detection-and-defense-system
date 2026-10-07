@@ -944,20 +944,66 @@
 
       <!-- PAGE: SETTINGS -->
       <div id="page-settings" class="page">
+        <!-- SYSTEM OPERATIONAL MODE & STACK -->
+        <div class="card" style="border-left: 4px solid var(--primary);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <div style="font-size: 10px; font-weight: 800; letter-spacing: 1px; color: var(--text-muted); text-transform: uppercase;">System Operational Mode</div>
+              <h3 style="font-size: 18px; font-weight: 900; color: var(--text); margin-top: 2px;" id="settings-mode-title">ONLINE MODE</h3>
+            </div>
+            <span class="badge badge-safe" id="settings-mode-badge">
+              <span class="chip-dot" style="background: var(--safe); margin-right: 4px;"></span> ONLINE
+            </span>
+          </div>
+          <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px;">
+            QRadar operates as an authoritative multi-tiered cyber defense system. When deployed online with internet connectivity, the backend validates destinations in real-time across heuristic rules, Random Forest ML, and live Threat Intelligence feeds.
+          </p>
+
+          <div style="background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 12px; padding: 16px;">
+            <div style="font-size: 11px; font-weight: 800; color: var(--text-muted); letter-spacing: 0.8px; margin-bottom: 12px;">AUTHORITATIVE SECURITY ARCHITECTURE STACK</div>
+            <div class="grid-2" style="gap: 10px;">
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text);">
+                <span style="color: var(--safe); font-weight: 900;">✓</span> <span><b>QR Decoder</b> (Local Browser jsQR + OpenCV Server)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text);">
+                <span style="color: var(--safe); font-weight: 900;">✓</span> <span><b>Heuristic Engine</b> (12 Deterministic Threat Indicators)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text);">
+                <span style="color: var(--safe); font-weight: 900;">✓</span> <span><b>Random Forest ML</b> (18-Feature Phishing Classifier)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text);">
+                <span style="color: var(--safe); font-weight: 900;">✓</span> <span><b>Threat Intelligence</b> (Live Feed & 24h SQLite TTL Cache)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text);">
+                <span style="color: var(--safe); font-weight: 900;">✓</span> <span><b>Unified Risk Engine</b> (Authoritative 0–100 Scorer)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text);">
+                <span style="color: var(--safe); font-weight: 900;">✓</span> <span><b>SQLite Database</b> (Audit History & Analytics Store)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FASTAPI BACKEND CONNECTIVITY & ENDPOINT CONFIG -->
         <div class="card">
-          <h3 style="font-size: 15px; margin-bottom: 12px; font-weight: 800; color: var(--text);">Engine Settings & Connectivity</h3>
+          <h3 style="font-size: 15px; margin-bottom: 8px; font-weight: 800; color: var(--text);">Backend API Endpoint Configuration</h3>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+            Specify the deployed FastAPI backend endpoint. Supports separated production domains (e.g. <code>https://api.qradar.example.com</code>) or local development.
+          </p>
           <div style="display: flex; flex-direction: column; gap: 14px;">
             <div>
               <label style="font-size: 11px; font-weight: bold; color: var(--text-muted); letter-spacing: 0.5px;">API BASE URL</label>
               <div class="input-group">
-                <input type="text" class="input-text" id="settings-base-url" value="http://127.0.0.1:8000">
+                <input type="text" class="input-text" id="settings-base-url" placeholder="https://api.qradar.example.com">
                 <button class="btn" onclick="testConnection()">Ping & Test</button>
+                <button class="btn btn-secondary" onclick="resetApiBase()" title="Reset to auto-detected origin">Reset</button>
               </div>
             </div>
             <div id="settings-ping-res"></div>
           </div>
         </div>
 
+        <!-- SCORING POLICY REFERENCE -->
         <div class="card">
           <h3 style="font-size: 15px; margin-bottom: 12px; font-weight: 800; color: var(--text);">Scoring Policy Reference</h3>
           <p style="font-size: 13px; line-height: 1.6; color: var(--text-muted);">
@@ -986,10 +1032,21 @@
   </div>
 
   <script>
-    let API_BASE = window.location.origin;
-    if (API_BASE === 'null' || !API_BASE || API_BASE.startsWith('file')) {
-      API_BASE = 'http://127.0.0.1:8000';
+    function getInitialApiBase() {
+      if (typeof window.QRADAR_API_BASE_URL === 'string' && window.QRADAR_API_BASE_URL.trim()) {
+        return window.QRADAR_API_BASE_URL.trim().replace(/\/+$/, '');
+      }
+      const saved = localStorage.getItem('qradar_api_base_url');
+      if (saved && saved.trim()) {
+        return saved.trim().replace(/\/+$/, '');
+      }
+      if (window.location.origin && window.location.origin !== 'null' && !window.location.origin.startsWith('file')) {
+        return window.location.origin.replace(/\/+$/, '');
+      }
+      return 'http://127.0.0.1:8000';
     }
+
+    let API_BASE = getInitialApiBase();
     let verdictChartInstance = null;
     let riskChartInstance = null;
 
@@ -1171,14 +1228,31 @@
     async function checkHealth() {
       try {
         const res = await fetch(`${API_BASE}/health`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         document.getElementById('status-dot').className = 'status-dot';
         document.getElementById('status-text').innerText = 'ONLINE';
         document.getElementById('status-text').style.color = 'var(--safe)';
+
+        const modeBadge = document.getElementById('settings-mode-badge');
+        if (modeBadge) {
+          modeBadge.className = 'badge badge-safe';
+          modeBadge.innerHTML = '<span class="chip-dot" style="background: var(--safe); margin-right: 4px;"></span> ONLINE';
+        }
+        const modeTitle = document.getElementById('settings-mode-title');
+        if (modeTitle) modeTitle.innerText = 'ONLINE MODE';
       } catch (e) {
         document.getElementById('status-dot').className = 'status-dot offline';
         document.getElementById('status-text').innerText = 'OFFLINE';
         document.getElementById('status-text').style.color = 'var(--malicious)';
+
+        const modeBadge = document.getElementById('settings-mode-badge');
+        if (modeBadge) {
+          modeBadge.className = 'badge badge-malicious';
+          modeBadge.innerHTML = '<span class="chip-dot" style="background: var(--malicious); margin-right: 4px;"></span> OFFLINE';
+        }
+        const modeTitle = document.getElementById('settings-mode-title');
+        if (modeTitle) modeTitle.innerText = 'BACKEND OFFLINE';
       }
     }
 
@@ -1646,34 +1720,67 @@
     }
 
     async function testConnection() {
-      const u = document.getElementById('settings-base-url').value.trim();
+      const inputEl = document.getElementById('settings-base-url');
+      const u = (inputEl ? inputEl.value : API_BASE).trim().replace(/\/+$/, '');
       const statusEl = document.getElementById('settings-ping-res');
-      statusEl.innerHTML = '<div style="color: var(--primary); font-weight: bold; font-size: 13px;">Pinging backend...</div>';
+      
+      if (!u) {
+        statusEl.innerHTML = '<div style="color: var(--malicious); font-size: 13px; font-weight: bold; margin-top: 8px;">Please enter a valid API Base URL.</div>';
+        return;
+      }
+
+      statusEl.innerHTML = '<div style="color: var(--primary); font-weight: bold; font-size: 13px; margin-top: 8px;">Pinging backend...</div>';
       try {
         const res = await fetch(`${u}/health`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         const d = await res.json();
+
+        // Persist valid Base URL
+        localStorage.setItem('qradar_api_base_url', u);
+        API_BASE = u;
+        checkHealth();
+        loadHomeStats();
+
         statusEl.innerHTML = `
-          <div style="padding: 12px 14px; background: var(--safe-bg); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 10px; margin-top: 10px;">
-            <div style="color: var(--safe); font-weight: 800; font-size: 14px; margin-bottom: 4px;">✓ Backend Connected</div>
-            <div style="font-size: 12px; color: var(--text-muted); font-weight: 500;">
-              Service: <b>${d.service || 'QRadar'}</b> &bull; Version: <b>${d.version || '1.0.0'}</b> &bull; ML Engine: <b>${d.ml_model_available ? 'Active (Random Forest)' : 'Fallback'}</b> &bull; Threat Intel: <b>${d.threat_intel_provider || 'Mock Provider'}</b>
+          <div style="padding: 14px 16px; background: var(--safe-bg); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 12px; margin-top: 10px;">
+            <div style="color: var(--safe); font-weight: 800; font-size: 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+              <span>✓</span> Backend Connected Successfully
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6;">
+              Endpoint: <b style="color: var(--text);">${u}</b><br>
+              Service: <b>${d.service || 'QRadar'}</b> &bull; Version: <b>${d.version || '1.0.0'}</b> &bull; Environment: <b>${d.environment || 'production'}</b><br>
+              ML Classifier: <b>${d.ml_model_available ? 'Active (Random Forest)' : 'Unavailable'}</b> &bull; Threat Feed: <b>${d.threat_intel_provider || 'Active'}</b>
             </div>
           </div>
         `;
       } catch (err) {
         statusEl.innerHTML = `
-          <div style="padding: 12px 14px; background: var(--malicious-bg); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 10px; margin-top: 10px;">
-            <div style="color: var(--malicious); font-weight: 800; font-size: 14px; margin-bottom: 4px;">✕ Backend Unreachable</div>
-            <div style="font-size: 12px; color: var(--text-muted); font-weight: 500;">
-              Unable to reach API endpoint at <code>${u}</code> (${err.message || 'Connection Refused'}). Please ensure the FastAPI backend server is active.
+          <div style="padding: 14px 16px; background: var(--malicious-bg); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 12px; margin-top: 10px;">
+            <div style="color: var(--malicious); font-weight: 800; font-size: 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+              <span>✕</span> Backend Unreachable
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6;">
+              Unable to reach API health endpoint at <code>${u}/health</code> (${err.message || 'Connection Refused'}).<br>
+              Please verify that the FastAPI server is running, reachable over HTTPS/HTTP, and that CORS allows requests from this origin.
             </div>
           </div>
         `;
       }
     }
 
-    // Initialize
+    function resetApiBase() {
+      localStorage.removeItem('qradar_api_base_url');
+      API_BASE = getInitialApiBase();
+      const inputEl = document.getElementById('settings-base-url');
+      if (inputEl) inputEl.value = API_BASE;
+      document.getElementById('settings-ping-res').innerHTML = '';
+      checkHealth();
+      loadHomeStats();
+    }
+
+    // Initialize UI and active endpoint
+    const baseUrlInput = document.getElementById('settings-base-url');
+    if (baseUrlInput) baseUrlInput.value = API_BASE;
     checkHealth();
     loadHomeStats();
   </script>
