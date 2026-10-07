@@ -1,15 +1,27 @@
 {
   "version": 2,
-  "builds": [
+  "public": true,
+  "cleanUrls": true,
+  "rewrites": [
     {
-      "src": "api/index.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
+      "source": "/api/v1/:path*",
+      "destination": "https://q-rader-backend.onrender.com/api/v1/:path*"
+    },
     {
-      "src": "/(.*)",
-      "dest": "api/index.py"
+      "source": "/health",
+      "destination": "https://q-rader-backend.onrender.com/health"
+    },
+    {
+      "source": "/docs",
+      "destination": "https://q-rader-backend.onrender.com/docs"
+    },
+    {
+      "source": "/openapi.json",
+      "destination": "https://q-rader-backend.onrender.com/openapi.json"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
