@@ -82,3 +82,6 @@ Thumbs.db
 *.exe
 cloudflared.exe
 
+
+.vercel
+.env*
