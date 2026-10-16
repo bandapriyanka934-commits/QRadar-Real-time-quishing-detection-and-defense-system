@@ -78,10 +78,18 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"^https://.*(\.vercel\.app|\.onrender\.com|\.trycloudflare\.com)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/openapi.json", include_in_schema=False)
+async def get_openapi_json():
+    """Fallback route to ensure Swagger and Vercel proxy can access OpenAPI schema."""
+    from fastapi.openapi.utils import get_openapi
+    return get_openapi(title=app.title, version=app.version, routes=app.routes, description=app.description)
 
 
 @app.exception_handler(Exception)

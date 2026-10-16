@@ -23,6 +23,10 @@
       "destination": "https://q-rader-backend.onrender.com/openapi.json"
     },
     {
+      "source": "/api/v1/openapi.json",
+      "destination": "https://q-rader-backend.onrender.com/api/v1/openapi.json"
+    },
+    {
       "source": "/(.*)",
       "destination": {
         "service": "web"

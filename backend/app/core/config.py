@@ -23,8 +23,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./qradar.db"
     SYNC_DATABASE_URL: str = "sqlite:///./qradar.db"
 
-    # CORS Configuration - Production safe defaults (specific origins rather than wildcard)
+    # CORS Configuration - Production and local development
     CORS_ORIGINS: List[str] = [
+        "https://qradar-real-time-quishing-detection.vercel.app",
+        "https://q-rader-backend.onrender.com",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
         "http://localhost:3000",
