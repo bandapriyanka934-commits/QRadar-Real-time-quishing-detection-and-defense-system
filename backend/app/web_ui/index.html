@@ -534,6 +534,21 @@
       .topbar { padding: 14px 16px; }
       .scanner-tabs { flex-direction: column; }
     }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.55; transform: scale(0.92); }
+    }
+    .status-dot.waking-up {
+      background: #F59E0B !important;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.7);
+      animation: pulse-glow 1.2s infinite ease-in-out;
+    }
+    .status-dot.connecting {
+      background: #38BDF8 !important;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+      animation: pulse-glow 1.2s infinite ease-in-out;
+    }
   </style>
 </head>
 <body>
@@ -613,6 +628,10 @@
 
   <!-- Main Content Area -->
   <div class="main-content">
+    <!-- Real-time Cloud Backend Status & Wakeup Banner -->
+    <div id="backend-wakeup-banner" style="display:none; padding: 12px 24px; background: rgba(245, 158, 11, 0.12); border-bottom: 1px solid rgba(245, 158, 11, 0.3); color: #F59E0B; align-items: center; justify-content: space-between; gap: 14px; font-size: 13px;">
+    </div>
+
     <div class="topbar">
       <h2 id="topbar-title">Home Overview</h2>
       <div>
@@ -986,19 +1005,39 @@
 
         <!-- FASTAPI BACKEND CONNECTIVITY & ENDPOINT CONFIG -->
         <div class="card">
-          <h3 style="font-size: 15px; margin-bottom: 8px; font-weight: 800; color: var(--text);">Backend API Endpoint Configuration</h3>
-          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
-            Specify the deployed FastAPI backend endpoint. Supports separated production domains (e.g. <code>https://api.qradar.example.com</code>) or local development.
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+            <h3 style="font-size: 15px; font-weight: 800; color: var(--text);">Backend API Endpoint Configuration</h3>
+            <span id="settings-active-endpoint-badge" class="badge badge-safe">ACTIVE</span>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.6;">
+            QRadar supports automatic failover between the high-performance Vercel Edge Proxy and the direct Render cloud backend. Render free-tier instances sleep after 15 minutes of inactivity; initial wake-up takes ~25–35 seconds.
           </p>
           <div style="display: flex; flex-direction: column; gap: 14px;">
             <div>
-              <label style="font-size: 11px; font-weight: bold; color: var(--text-muted); letter-spacing: 0.5px;">API BASE URL</label>
+              <label style="font-size: 11px; font-weight: bold; color: var(--text-muted); letter-spacing: 0.5px;">ACTIVE API BASE URL</label>
               <div class="input-group">
-                <input type="text" class="input-text" id="settings-base-url" placeholder="https://api.qradar.example.com">
-                <button class="btn" onclick="testConnection()">Ping & Test</button>
-                <button class="btn btn-secondary" onclick="resetApiBase()" title="Reset to auto-detected origin">Reset</button>
+                <input type="text" class="input-text" id="settings-base-url" placeholder="https://q-rader-backend.onrender.com">
+                <button class="btn" onclick="testConnection()">Ping & Save</button>
+                <button class="btn btn-secondary" onclick="wakeUpBackend()" title="Send wake-up request to Render backend">Wake Up Cloud</button>
               </div>
             </div>
+
+            <!-- Quick Presets -->
+            <div>
+              <label style="font-size: 10px; font-weight: bold; color: var(--text-muted); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px; display: block;">Quick Endpoint Presets</label>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="chip" onclick="switchBackendPreset('render')" title="Directly communicate with Render production backend">
+                  <span class="chip-dot" style="background: var(--primary);"></span> Direct Render Backend
+                </button>
+                <button class="chip" onclick="switchBackendPreset('origin')" title="Use same-origin edge rewrites">
+                  <span class="chip-dot" style="background: var(--safe);"></span> Vercel Edge Proxy
+                </button>
+                <button class="chip" onclick="switchBackendPreset('local')" title="Use localhost 8000 for local development">
+                  <span class="chip-dot" style="background: var(--text-muted);"></span> Local (127.0.0.1:8000)
+                </button>
+              </div>
+            </div>
+
             <div id="settings-ping-res"></div>
           </div>
         </div>
@@ -1032,21 +1071,102 @@
   </div>
 
   <script>
+    // Authoritative Endpoint Constants
+    const CLOUD_RENDER_URL = 'https://q-rader-backend.onrender.com';
+    const CURRENT_ORIGIN = (typeof window !== 'undefined' && window.location.origin && window.location.origin !== 'null' && !window.location.origin.startsWith('file'))
+      ? window.location.origin.replace(/\/+$/, '')
+      : 'http://127.0.0.1:8000';
+
     function getInitialApiBase() {
+      // 1. Explicit global override
       if (typeof window.QRADAR_API_BASE_URL === 'string' && window.QRADAR_API_BASE_URL.trim()) {
         return window.QRADAR_API_BASE_URL.trim().replace(/\/+$/, '');
       }
+      // 2. Saved local storage URL (with strict HTTPS Mixed Content guard)
       const saved = localStorage.getItem('qradar_api_base_url');
       if (saved && saved.trim()) {
-        return saved.trim().replace(/\/+$/, '');
+        const trimmed = saved.trim().replace(/\/+$/, '');
+        // Block insecure HTTP if page is loaded over HTTPS to prevent fatal Mixed Content blocking
+        if (window.location.protocol === 'https:' && trimmed.startsWith('http://')) {
+          console.warn('Ignoring saved HTTP URL on HTTPS origin to prevent Mixed Content blocking:', trimmed);
+          localStorage.removeItem('qradar_api_base_url');
+        } else {
+          return trimmed;
+        }
       }
-      if (window.location.origin && window.location.origin !== 'null' && !window.location.origin.startsWith('file')) {
-        return window.location.origin.replace(/\/+$/, '');
-      }
-      return 'http://127.0.0.1:8000';
+      // 3. Prefer CURRENT_ORIGIN on Vercel deployment with direct CLOUD_RENDER_URL auto-failover
+      return CURRENT_ORIGIN;
     }
 
     let API_BASE = getInitialApiBase();
+    let backendStatus = 'CHECKING'; // 'ONLINE' | 'WAKING_UP' | 'OFFLINE' | 'CHECKING'
+    let isHealthChecking = false;
+    let wakeUpAttempts = 0;
+    const MAX_WAKEUP_ATTEMPTS = 15;
+    let wakeUpTimer = null;
+    let heartbeatInterval = null;
+
+    function updateApiBaseInputs(url) {
+      const inputEl = document.getElementById('settings-base-url');
+      if (inputEl) inputEl.value = url;
+      const badge = document.getElementById('settings-active-endpoint-badge');
+      if (badge) {
+        badge.innerText = url === CLOUD_RENDER_URL ? 'DIRECT CLOUD' : (url === CURRENT_ORIGIN ? 'EDGE PROXY' : 'CUSTOM');
+      }
+    }
+
+    // Smart failover fetch wrapper
+    async function apiFetch(path, options = {}) {
+      const cleanPath = path.startsWith('/') ? path : `/${path}`;
+      const timeoutMs = options.timeout || 35000;
+
+      const primaryUrl = `${API_BASE}${cleanPath}`;
+
+      // Candidate fallback base
+      let fallbackBase = null;
+      if (API_BASE === CURRENT_ORIGIN && CURRENT_ORIGIN !== CLOUD_RENDER_URL) {
+        fallbackBase = CLOUD_RENDER_URL;
+      } else if (API_BASE === CLOUD_RENDER_URL && CURRENT_ORIGIN !== CLOUD_RENDER_URL && CURRENT_ORIGIN.startsWith('https')) {
+        fallbackBase = CURRENT_ORIGIN;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      const fetchOpts = { ...options, signal: controller.signal };
+
+      try {
+        const res = await fetch(primaryUrl, fetchOpts);
+        clearTimeout(timeoutId);
+
+        // If Vercel edge proxy times out (502/503/504) during Render cold-start, failover to direct Render backend
+        if ((res.status === 502 || res.status === 503 || res.status === 504) && fallbackBase) {
+          console.warn(`Primary endpoint ${primaryUrl} returned HTTP ${res.status}. Automatic failover to direct backend: ${fallbackBase}`);
+          const fbRes = await fetch(`${fallbackBase}${cleanPath}`, options);
+          if (fbRes.ok) {
+            API_BASE = fallbackBase;
+            updateApiBaseInputs(API_BASE);
+          }
+          return fbRes;
+        }
+        return res;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (fallbackBase) {
+          console.warn(`Primary endpoint ${primaryUrl} failed (${err.message}). Trying fallback: ${fallbackBase}`);
+          try {
+            const fbRes = await fetch(`${fallbackBase}${cleanPath}`, options);
+            if (fbRes.ok) {
+              API_BASE = fallbackBase;
+              updateApiBaseInputs(API_BASE);
+            }
+            return fbRes;
+          } catch (fbErr) {
+            throw fbErr;
+          }
+        }
+        throw err;
+      }
+    }
     let verdictChartInstance = null;
     let riskChartInstance = null;
 
@@ -1225,47 +1345,138 @@
     // ==========================================
     // BACKEND COMMUNICATION & SECURITY SCANS
     // ==========================================
-    async function checkHealth() {
+    async function checkHealth(isRetry = false) {
+      if (isHealthChecking && !isRetry) return;
+      isHealthChecking = true;
+
+      const statusDot = document.getElementById('status-dot');
+      const statusText = document.getElementById('status-text');
+      const modeBadge = document.getElementById('settings-mode-badge');
+      const modeTitle = document.getElementById('settings-mode-title');
+      const banner = document.getElementById('backend-wakeup-banner');
+
+      if (!isRetry && wakeUpAttempts === 0) {
+        if (statusDot) statusDot.className = 'status-dot connecting';
+        if (statusText) {
+          statusText.innerText = 'CONNECTING...';
+          statusText.style.color = 'var(--primary)';
+        }
+      }
+
       try {
-        const res = await fetch(`${API_BASE}/health`);
+        const res = await apiFetch('/health', { timeout: 12000 });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        document.getElementById('status-dot').className = 'status-dot';
-        document.getElementById('status-text').innerText = 'ONLINE';
-        document.getElementById('status-text').style.color = 'var(--safe)';
 
-        const modeBadge = document.getElementById('settings-mode-badge');
+        // Successful connection!
+        backendStatus = 'ONLINE';
+        wakeUpAttempts = 0;
+        if (wakeUpTimer) {
+          clearTimeout(wakeUpTimer);
+          wakeUpTimer = null;
+        }
+
+        if (statusDot) {
+          statusDot.className = 'status-dot';
+          statusDot.style.background = 'var(--safe)';
+        }
+        if (statusText) {
+          statusText.innerText = 'ONLINE';
+          statusText.style.color = 'var(--safe)';
+        }
         if (modeBadge) {
           modeBadge.className = 'badge badge-safe';
           modeBadge.innerHTML = '<span class="chip-dot" style="background: var(--safe); margin-right: 4px;"></span> ONLINE';
         }
-        const modeTitle = document.getElementById('settings-mode-title');
         if (modeTitle) modeTitle.innerText = 'ONLINE MODE';
-      } catch (e) {
-        document.getElementById('status-dot').className = 'status-dot offline';
-        document.getElementById('status-text').innerText = 'OFFLINE';
-        document.getElementById('status-text').style.color = 'var(--malicious)';
+        if (banner) banner.style.display = 'none';
 
-        const modeBadge = document.getElementById('settings-mode-badge');
-        if (modeBadge) {
-          modeBadge.className = 'badge badge-malicious';
-          modeBadge.innerHTML = '<span class="chip-dot" style="background: var(--malicious); margin-right: 4px;"></span> OFFLINE';
+        // Refresh stats
+        loadHomeStats();
+      } catch (e) {
+        console.warn('Backend ping:', e.message);
+        wakeUpAttempts++;
+
+        if (wakeUpAttempts <= MAX_WAKEUP_ATTEMPTS) {
+          backendStatus = 'WAKING_UP';
+          if (statusDot) statusDot.className = 'status-dot waking-up';
+          if (statusText) {
+            statusText.innerText = `WAKING UP (${wakeUpAttempts * 3}s)...`;
+            statusText.style.color = '#F59E0B';
+          }
+          if (modeBadge) {
+            modeBadge.className = 'badge badge-suspicious';
+            modeBadge.innerHTML = '<span class="chip-dot" style="background: var(--suspicious); margin-right: 4px;"></span> WAKING UP';
+          }
+          if (modeTitle) modeTitle.innerText = 'BACKEND INITIALIZING';
+
+          if (banner) {
+            banner.style.display = 'flex';
+            banner.innerHTML = `
+              <div style="display: flex; align-items: center; gap: 10px; flex-grow: 1;">
+                <div style="width: 14px; height: 14px; border: 2px solid #F59E0B; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0;"></div>
+                <div>
+                  <b>Waking up cloud backend...</b> Render free-tier services spin down after 15m idle. Initial boot takes ~25–35s. Please hold on...
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="chip" onclick="switchBackendPreset('render')" style="padding: 4px 10px; font-size: 11px;">Direct Cloud</button>
+                <button class="chip" onclick="wakeUpBackend()" style="padding: 4px 10px; font-size: 11px;">Retry</button>
+              </div>
+            `;
+          }
+
+          // Auto retry every 3 seconds
+          if (wakeUpTimer) clearTimeout(wakeUpTimer);
+          wakeUpTimer = setTimeout(() => checkHealth(true), 3000);
+        } else {
+          backendStatus = 'OFFLINE';
+          if (statusDot) {
+            statusDot.className = 'status-dot offline';
+            statusDot.style.background = 'var(--malicious)';
+          }
+          if (statusText) {
+            statusText.innerText = 'OFFLINE';
+            statusText.style.color = 'var(--malicious)';
+          }
+          if (modeBadge) {
+            modeBadge.className = 'badge badge-malicious';
+            modeBadge.innerHTML = '<span class="chip-dot" style="background: var(--malicious); margin-right: 4px;"></span> OFFLINE';
+          }
+          if (modeTitle) modeTitle.innerText = 'BACKEND OFFLINE';
+
+          if (banner) {
+            banner.style.display = 'flex';
+            banner.innerHTML = `
+              <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; flex-wrap: wrap; gap: 10px;">
+                <div>
+                  <span style="color: var(--malicious); font-weight: bold;">✕ Backend Unreachable at ${API_BASE}.</span>
+                  <span style="color: var(--text-muted); font-size: 12px; margin-left: 6px;">Check internet or switch to direct cloud backend.</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button class="chip" onclick="switchBackendPreset('render')" style="padding: 4px 10px; font-size: 11px;">Direct Cloud</button>
+                  <button class="chip" onclick="wakeUpBackend()" style="padding: 4px 10px; font-size: 11px;">Wake Up</button>
+                </div>
+              </div>
+            `;
+          }
         }
-        const modeTitle = document.getElementById('settings-mode-title');
-        if (modeTitle) modeTitle.innerText = 'BACKEND OFFLINE';
+      } finally {
+        isHealthChecking = false;
       }
     }
 
     async function loadHomeStats() {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/dashboard`);
+        const res = await apiFetch('/api/v1/dashboard', { timeout: 10000 });
+        if (!res.ok) return;
         const d = await res.json();
         document.getElementById('home-total-scans').innerText = d.total_scans ?? 0;
         document.getElementById('home-blocked').innerText = d.blocked_threats_count ?? 0;
         document.getElementById('home-safe').innerText = d.verdict_counts ? d.verdict_counts.safe : 0;
         document.getElementById('home-suspicious').innerText = d.verdict_counts ? d.verdict_counts.suspicious : 0;
       } catch (e) {
-        console.error('Failed to load home stats:', e);
+        console.warn('Failed to load home stats:', e);
       }
     }
 
@@ -1273,19 +1484,46 @@
       if (!url || !url.trim()) return;
       showResultLoading();
       setScannerStatus('Analyzing Security', 'var(--primary)');
+      const targetUrlEl = document.getElementById('res-target-url');
+      if (targetUrlEl) targetUrlEl.innerText = url.trim();
+
       try {
-        const res = await fetch(`${API_BASE}/api/v1/scan/url`, {
+        const res = await apiFetch('/api/v1/scan/url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: url.trim(), source: 'web_dashboard' })
+          body: JSON.stringify({ url: url.trim(), source: 'web_dashboard' }),
+          timeout: 45000
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          throw new Error(`HTTP ${res.status}: ${res.statusText || errText || 'Server Error'}`);
+        }
+
         const data = await res.json();
         setScannerStatus('Analysis Complete', 'var(--safe)');
         renderResult(data);
+        loadHomeStats();
       } catch (e) {
-        alert('Authoritative security evaluation failed: ' + e.message);
-        showPage('scanner');
+        console.error('Scan evaluation failed:', e);
+        const actionTitle = document.getElementById('res-action-title');
+        const reasonsList = document.getElementById('res-reasons-list');
+        if (actionTitle) {
+          actionTitle.innerText = 'EVALUATION PENDING';
+          actionTitle.style.color = 'var(--suspicious)';
+        }
+        if (reasonsList) {
+          reasonsList.innerHTML = `
+            <div style="padding: 16px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; color: var(--text);">
+              <div style="font-weight: 800; color: var(--malicious); margin-bottom: 6px;">Evaluation Request Error</div>
+              <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">${e.message || 'Backend connection interrupted.'}</div>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn" onclick="scanUrl('${url.replace(/'/g, "\'")}')" style="padding: 8px 16px; font-size: 12px;">Retry Scan</button>
+                <button class="btn btn-secondary" onclick="wakeUpBackend()" style="padding: 8px 16px; font-size: 12px;">Wake Up Cloud Backend</button>
+              </div>
+            </div>
+          `;
+        }
       }
     }
 
@@ -1307,12 +1545,12 @@
       formData.append('file', file);
 
       const statusEl = document.getElementById('upload-status');
-      statusEl.innerText = 'Decoding QR Code...';
+      statusEl.innerText = 'Decoding QR Code & Analyzing Security...';
       try {
-        statusEl.innerText = 'Analyzing Security...';
-        const res = await fetch(`${API_BASE}/api/v1/scan/image`, {
+        const res = await apiFetch('/api/v1/scan/image', {
           method: 'POST',
-          body: formData
+          body: formData,
+          timeout: 45000
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         const data = await res.json();
@@ -1323,8 +1561,9 @@
         } else {
           renderResult(data);
         }
+        loadHomeStats();
       } catch (e) {
-        statusEl.innerText = 'Upload failed: ' + e.message;
+        statusEl.innerHTML = `<span style="color: var(--malicious);">Upload failed: ${e.message}</span> &bull; <a href="javascript:void(0)" onclick="wakeUpBackend()" style="color: var(--primary);">Wake Up Backend</a>`;
       }
     }
 
@@ -1581,7 +1820,7 @@
 
     async function loadDashboard() {
       try {
-        const res = await fetch(`${API_BASE}/api/v1/dashboard`);
+        const res = await apiFetch('/api/v1/dashboard');
         const d = await res.json();
 
         document.getElementById('dash-total-scans').innerText = d.total_scans ?? 0;
@@ -1684,7 +1923,7 @@
       try {
         const filter = document.getElementById('history-filter-verdict').value;
         const url = filter ? `${API_BASE}/api/v1/scans?verdict=${filter}` : `${API_BASE}/api/v1/scans`;
-        const res = await fetch(url);
+        const res = await apiFetch(url.replace(API_BASE, ''));
         const data = await res.json();
 
         const tbody = document.getElementById('history-tbody');
@@ -1711,7 +1950,7 @@
 
     async function clearAllLogs() {
       if (!confirm('Clear all stored scan logs from the local database?')) return;
-      await fetch(`${API_BASE}/api/v1/scans`, { method: 'DELETE' });
+      await apiFetch('/api/v1/scans', { method: 'DELETE' });
       loadHistory();
       loadHomeStats();
       if (document.getElementById('page-dashboard').classList.contains('active')) {
@@ -1731,13 +1970,15 @@
 
       statusEl.innerHTML = '<div style="color: var(--primary); font-weight: bold; font-size: 13px; margin-top: 8px;">Pinging backend...</div>';
       try {
-        const res = await fetch(`${u}/health`);
+        const res = await fetch(`${u}/health`, { timeout: 15000 });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         const d = await res.json();
 
         // Persist valid Base URL
         localStorage.setItem('qradar_api_base_url', u);
         API_BASE = u;
+        updateApiBaseInputs(API_BASE);
+        wakeUpAttempts = 0;
         checkHealth();
         loadHomeStats();
 
@@ -1761,28 +2002,65 @@
             </div>
             <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6;">
               Unable to reach API health endpoint at <code>${u}/health</code> (${err.message || 'Connection Refused'}).<br>
-              Please verify that the FastAPI server is running, reachable over HTTPS/HTTP, and that CORS allows requests from this origin.
+              If Render is waking up from idle, please click "Wake Up Cloud" and wait 25 seconds.
             </div>
           </div>
         `;
       }
     }
 
+    function switchBackendPreset(preset) {
+      if (preset === 'render') {
+        API_BASE = CLOUD_RENDER_URL;
+      } else if (preset === 'origin') {
+        API_BASE = CURRENT_ORIGIN;
+      } else if (preset === 'local') {
+        if (window.location.protocol === 'https:') {
+          alert('Note: Modern browsers block insecure http:// URLs from HTTPS websites due to Mixed Content restrictions. For local development, run the web UI on http://localhost:8000.');
+          return;
+        }
+        API_BASE = 'http://127.0.0.1:8000';
+      }
+      localStorage.setItem('qradar_api_base_url', API_BASE);
+      updateApiBaseInputs(API_BASE);
+      wakeUpAttempts = 0;
+      const resEl = document.getElementById('settings-ping-res');
+      if (resEl) {
+        resEl.innerHTML = `<div style="color: var(--primary); font-size: 12px; margin-top: 8px;">Switched to ${API_BASE}. Pinging backend...</div>`;
+      }
+      checkHealth();
+    }
+
+    function wakeUpBackend() {
+      wakeUpAttempts = 0;
+      const resEl = document.getElementById('settings-ping-res');
+      if (resEl) {
+        resEl.innerHTML = '<div style="color: var(--primary); font-weight: bold; font-size: 13px; margin-top: 8px;">Pinging cloud backend & waking up server...</div>';
+      }
+      checkHealth();
+    }
+
     function resetApiBase() {
       localStorage.removeItem('qradar_api_base_url');
       API_BASE = getInitialApiBase();
-      const inputEl = document.getElementById('settings-base-url');
-      if (inputEl) inputEl.value = API_BASE;
+      updateApiBaseInputs(API_BASE);
       document.getElementById('settings-ping-res').innerHTML = '';
+      wakeUpAttempts = 0;
       checkHealth();
       loadHomeStats();
     }
 
     // Initialize UI and active endpoint
-    const baseUrlInput = document.getElementById('settings-base-url');
-    if (baseUrlInput) baseUrlInput.value = API_BASE;
+    updateApiBaseInputs(API_BASE);
     checkHealth();
     loadHomeStats();
+
+    // Start background heartbeat every 30 seconds
+    heartbeatInterval = setInterval(() => {
+      if (backendStatus === 'ONLINE') {
+        checkHealth(true);
+      }
+    }, 30000);
   </script>
 </body>
 </html>
