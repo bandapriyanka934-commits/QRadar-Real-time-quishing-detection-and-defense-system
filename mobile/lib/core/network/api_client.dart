@@ -22,7 +22,7 @@ class ApiClient {
 
   String get _baseUrl => EnvConfig.baseUrl;
 
-  Future<Map<String, dynamic>> get(String endpoint, {Map<String, String>? queryParams}) async {
+  Future<dynamic> get(String endpoint, {Map<String, String>? queryParams}) async {
     final uri = Uri.parse('$_baseUrl$endpoint').replace(queryParameters: queryParams);
     try {
       final response = await _client.get(uri).timeout(defaultTimeout);
@@ -100,7 +100,7 @@ class ApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> delete(String endpoint) async {
+  Future<dynamic> delete(String endpoint) async {
     final uri = Uri.parse('$_baseUrl$endpoint');
     try {
       final response = await _client.delete(uri).timeout(defaultTimeout);

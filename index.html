@@ -1518,7 +1518,7 @@
               <div style="font-weight: 800; color: var(--malicious); margin-bottom: 6px;">Evaluation Request Error</div>
               <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">${e.message || 'Backend connection interrupted.'}</div>
               <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button class="btn" onclick="scanUrl('${url.replace(/'/g, "\'")}')" style="padding: 8px 16px; font-size: 12px;">Retry Scan</button>
+                <button class="btn" onclick="scanUrl(decodeURIComponent('${encodeURIComponent(url)}'))" style="padding: 8px 16px; font-size: 12px;">Retry Scan</button>
                 <button class="btn btn-secondary" onclick="wakeUpBackend()" style="padding: 8px 16px; font-size: 12px;">Wake Up Cloud Backend</button>
               </div>
             </div>
@@ -1794,13 +1794,13 @@
       } else if (isSuspicious) {
         gate.innerHTML = `
           <div style="display: flex; gap: 12px;">
-            <button class="btn btn-warning" style="flex-grow: 1; justify-content: center;" onclick="confirmOpen('${data.normalized_url || data.original_content}', true)">Proceed with Caution (Confirm)</button>
+            <button class="btn btn-warning" style="flex-grow: 1; justify-content: center;" onclick="confirmOpen(decodeURIComponent('${encodeURIComponent(data.normalized_url || data.original_content)}'), true)">Proceed with Caution (Confirm)</button>
           </div>
         `;
       } else {
         gate.innerHTML = `
           <div style="display: flex; gap: 12px;">
-            <button class="btn" style="flex-grow: 1; justify-content: center;" onclick="confirmOpen('${data.normalized_url || data.original_content}', false)">Open Destination in Browser (Confirm)</button>
+            <button class="btn" style="flex-grow: 1; justify-content: center;" onclick="confirmOpen(decodeURIComponent('${encodeURIComponent(data.normalized_url || data.original_content)}'), false)">Open Destination in Browser (Confirm)</button>
           </div>
         `;
       }
@@ -1922,8 +1922,8 @@
     async function loadHistory() {
       try {
         const filter = document.getElementById('history-filter-verdict').value;
-        const url = filter ? `${API_BASE}/api/v1/scans?verdict=${filter}` : `${API_BASE}/api/v1/scans`;
-        const res = await apiFetch(url.replace(API_BASE, ''));
+        const path = filter ? `/api/v1/scans?verdict=${encodeURIComponent(filter)}` : '/api/v1/scans';
+        const res = await apiFetch(path);
         const data = await res.json();
 
         const tbody = document.getElementById('history-tbody');
@@ -1940,7 +1940,7 @@
             <td style="font-family: var(--font-mono); font-size: 12px; color: var(--text); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
               ${item.normalized_url || item.original_content}
             </td>
-            <td><button class="chip" onclick="scanUrl('${item.original_content.replace(/'/g, "\\'")}')">Re-Inspect</button></td>
+            <td><button class="chip" onclick="scanUrl(decodeURIComponent('${encodeURIComponent(item.original_content)}'))">Re-Inspect</button></td>
           </tr>
         `).join('');
       } catch (e) {
